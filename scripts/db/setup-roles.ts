@@ -13,6 +13,7 @@ import {
   randomPassword,
   toPooledUrl,
   withCredentials,
+  withVerifyFull,
 } from "../../src/server/db/connection";
 
 type RoleSpec = { name: string; login: boolean; envKey?: string };
@@ -41,9 +42,11 @@ async function ensureRole(client: Client, role: RoleSpec, password?: string) {
 
 async function main() {
   const envFile = process.argv[2];
-  const adminUrl = process.env.DATABASE_URL_ADMIN;
+  const rawAdminUrl = process.env.DATABASE_URL_ADMIN;
   if (!envFile) throw new Error("사용법: npm run db:setup-roles -- <env 파일>");
-  if (!adminUrl) throw new Error("DATABASE_URL_ADMIN(소유자 직접 연결 URL)이 필요하다");
+  if (!rawAdminUrl) throw new Error("DATABASE_URL_ADMIN(소유자 직접 연결 URL)이 필요하다");
+  // 세 연결 문자열 모두 sslmode=verify-full을 명시한다(pg 경고 대응, 현재의 안전한 동작 고정).
+  const adminUrl = withVerifyFull(rawAdminUrl);
 
   const admin = new Client({ connectionString: adminUrl });
   await admin.connect();
