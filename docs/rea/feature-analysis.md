@@ -11,7 +11,7 @@
 | 사용자 목적 | 가장 적은 노력으로 작품에 대한 감상을 남긴다 |
 | UI 구조 | 상세 화면의 별 5개(각 44×44px, 폭 220px 중앙 정렬). 미평가는 회색, 평가는 노란 채움이며 반별을 표현한다. 평가 후 `YYYY.MM.DD ·`, `수정`, `재감상 기록하기`, 코멘트 유도 버튼이 나타난다 |
 | 인터랙션 | 별 탭 = 즉시 저장(확인 단계 없음). 별의 왼쪽 절반 = x.5, 오른쪽 절반 = 정수(4번째 별 왼쪽 탭 → 3.5). **같은 별을 다시 탭하면 취소**된다 |
-| 핵심 데이터 | `POST /api/contents/{id}/ratings` 본문 `{"rating":7}` → 200 `{"metadata":{},"result":null}`. 취소는 같은 경로 `DELETE` → 200. 저장값 = 별점 × 2 (정수) |
+| 핵심 데이터 | `POST /api/contents/{id}/ratings` 본문 `{"rating":7}` → 200 `{"metadata":{},"result":null}`. 취소는 같은 경로 `DELETE` → 200. 저장값은 3.5점 → 정수 `7` 한 건만 확인했고, `별점 × 2`라는 일반 규칙은 **추정**이다 |
 | 게임 버전 적용 | 변형 적용 |
 | 적용 이유 | 0.5 단위·정수 저장(1–10)·즉시 저장은 낮은 기록 비용 때문에 유지한다. 같은 별 재탭만으로 취소되는 숨은 동작은 접근성에 불리하므로 명시적 `평가 취소` 버튼과 키보드 조작을 추가한다 |
 
@@ -39,7 +39,7 @@
 | 인터랙션 | 탭 = 즉시 토글, 시트·확인 없음 |
 | 핵심 데이터 | `POST`/`DELETE /api/contents/{id}/wish`, `POST`/`DELETE /api/contents/{id}/doing` (본문 `{}`) |
 | 게임 버전 적용 | 변형 적용 |
-| 적용 이유 | 왓챠는 2개 상태뿐이다. 게임은 관심 있음 / 플레이 예정 / 플레이 중 / 일시 중단 / 엔딩 완료 / 100% 달성 / 플레이 포기 7단계와 진행도가 필요하다. "평가와 독립"이라는 구조는 그대로 유지한다 |
+| 적용 이유 | 왓챠는 2개 상태뿐이다. 게임은 관심 있음 / 플레이 예정 / 플레이 중 / 일시 중단 / 엔딩 완료 / 100% 달성 / 플레이 포기 7단계와 진행도가 필요하다. "평가와 독립"이라는 구조는 왓챠에서 독립성이 확인된 것이 아니라(별도 API 리소스까지만 확인) SavePoint의 설계 원칙으로 채택한다 |
 
 ## F5. 코멘트 작성
 
@@ -52,7 +52,7 @@
 | 인터랙션 | 두 진입점 모두 클릭해도 화면 이동·다이얼로그·입력창·쓰기 API 호출이 없었다. 설치 유도 모달이 "앱에서 코멘트와 기록을 남기고 공유해보세요!"라고 안내하는 점과 일치하지만, **앱 전용이라는 결론은 추정**이다 |
 | 핵심 데이터 | 미확인(본문 길이 제한, 스포일러 표시, 공개 범위, 평가 필수 여부 모두 미확인) |
 | 게임 버전 적용 | 변형 적용 |
-| 적용 이유 | SavePoint는 모바일 웹이 유일한 클라이언트이므로 웹에서 직접 작성할 수 있어야 한다. 평가 필수 여부는 REA로 정할 수 없어 [feature-specification](../product/feature-specification.md)에서 "평가와 독립"으로 결정한다 |
+| 적용 이유 | SavePoint는 모바일 웹이 유일한 클라이언트이므로 웹에서 직접 작성할 수 있어야 한다. 평가 필수 여부는 REA로 정할 수 없어 `docs/product/feature-specification.md`(PR #2에서 추가 예정)에서 "평가와 독립"으로 결정한다 |
 
 ## F6. 코멘트 목록·상세·반응
 
@@ -89,7 +89,7 @@
 | 사용자 목적 | 지금 화제인 작품을 발견한다 |
 | UI 구조 | 히어로 카드 → 바로가기 → HOT 랭킹(순위 변동 표시) → 인물 랭킹 → 공개 예정작 |
 | 인터랙션 | 카드 → 상세. 가로 스크롤 레일 |
-| 핵심 데이터 | `GET /api/home/unification`, `/rankings?chart_id=galaxy_hot`, `/person_rankings`, `/movie/upcomings` |
+| 핵심 데이터 | `GET /api/home/unification`, `GET /api/home/unification/rankings?chart_id=galaxy_hot`, `GET /api/home/unification/person_rankings`, `GET /api/home/movie/upcomings?content_type=movies` |
 | 게임 버전 적용 | 변형 적용 |
 | 적용 이유 | 초기에는 "인기 게임 / 최근 등록 / 출시 예정" 3개 레일로 단순화한다. 순위 변동 표시는 후속 |
 
@@ -169,7 +169,7 @@
 | 인터랙션 | 항목 → 작품/프로필. 알림 탭 `내 소식/이벤트` |
 | 핵심 데이터 | `GET /api/notifications/unread` |
 | 게임 버전 적용 | 변형 적용 |
-| 적용 이유 | 활동 종류를 평가·리뷰·엔딩·100%·라이브러리 등록으로 확장한다. 묶음 표시는 같은 사용자의 짧은 시간 내 동일 종류 활동에만 적용한다. 피드는 홈 상단 탭으로 둘지 별도 탭으로 둘지 [user-flows](../product/user-flows.md)에서 결정한다 |
+| 적용 이유 | 활동 종류를 평가·리뷰·엔딩·100%·라이브러리 등록으로 확장한다. 묶음 표시는 같은 사용자의 짧은 시간 내 동일 종류 활동에만 적용한다. 피드는 홈 상단 탭으로 둘지 별도 탭으로 둘지 `docs/product/user-flows.md`(PR #2에서 추가 예정)에서 결정한다 |
 
 ## F15. 취향분석·좋아요(인물)
 
@@ -236,7 +236,7 @@
 | 질문 | 답 | 수준 |
 |---|---|---|
 | 평가 UI 형태 | 별 5개, 영역 탭 | 실제 확인 |
-| 점수 범위·단위 | 0.5–5.0, 0.5 단위. 저장값 정수 1–10(3.5 → 7) | 실제 확인(최솟값 저장은 미실행) |
+| 점수 범위·단위 | 0.5–5.0, 0.5 단위(코멘트 카드의 3.5·4.5와 분포 축에서 확인). 저장값은 3.5 → 7만 확인했고 정수 1–10 범위는 추정 | 부분 확인 |
 | 등록·수정 | 탭 즉시 저장. 다른 별로 수정 시 동작은 미실행 | 부분 확인 |
 | 취소 | 같은 별 재탭 → `DELETE` | 실제 확인 |
 | 미평가 vs 평가 UI | 회색 → 노란 별, 날짜·`수정`·`재감상 기록하기`·코멘트 유도 버튼 노출 | 실제 확인 |
@@ -262,14 +262,14 @@
 
 | 용도 | 메서드·경로 |
 |---|---|
-| 평가 등록/취소 | `POST`·`DELETE /api/contents/{id}/ratings` (`{"rating": 1–10}`) |
+| 평가 등록/취소 | `POST`·`DELETE /api/contents/{id}/ratings` (본문 `{"rating": n}`, 3.5점 → `7`만 확인) |
 | 보고싶어요 | `POST`·`DELETE /api/contents/{id}/wish` |
 | 보는 중 | `POST`·`DELETE /api/contents/{id}/doing` |
-| 콘텐츠 상세 | `GET /api/contents/{id}`, `/credits?size=12&page=1`, `/decks`, `/comments?filter=&order=` |
+| 콘텐츠 상세 | `GET /api/contents/{id}`, `GET /api/contents/{id}/credits?size=12&page=1`, `GET /api/contents/{id}/decks`, `GET /api/contents/{id}/comments?filter=&order=` |
 | 코멘트 댓글 | `GET /api/comments/{id}/replies?replies_size=9` |
-| 검색 | `GET /api/searches/search_token`, `/autocomplete?query=`, `/searches?query=` |
-| 캘린더 | `GET /api/users/{id}/ratings/{YYYY}/{M}`, `/user_month_report/{YYYY}/{M}/ratings` |
-| 홈 | `GET /api/home/unification`, `/rankings`, `/person_rankings`, `/movie/upcomings` |
+| 검색 | `GET /api/searches/search_token`, `GET /api/searches/autocomplete?query=`, `GET /api/searches?query=` |
+| 캘린더 | `GET /api/users/{id}/ratings/{YYYY}/{M}`, `GET /api/users/{id}/user_month_report/{YYYY}/{M}/ratings` |
+| 홈 | `GET /api/home/unification`, `GET /api/home/unification/rankings?chart_id=galaxy_hot`, `GET /api/home/unification/person_rankings`, `GET /api/home/movie/upcomings?content_type=movies` |
 | 알림 | `GET /api/notifications/unread` |
 | 응답 형식 | `{"metadata": ..., "result": ...}` 래퍼 |
 
@@ -277,6 +277,6 @@
 
 | 구분 | 기능 |
 |---|---|
-| **계승** (그대로·변형) | 별점 평가, 평가와 보관 상태의 독립, 코멘트(리뷰)·좋아요, 검색, 프로필·통계 링크, 팔로우·피드·알림, 월 캘린더와 일별 상세, 취향분석, 보관함 → 라이브러리, 보호 경로 복귀 |
+| **계승** (그대로·변형) | 별점 평가, 평가와 보관 상태의 분리(왓챠는 별도 API로 분리. 독립성은 미확인이며 SavePoint 설계 원칙으로 채택), 코멘트(리뷰)·좋아요, 검색, 프로필·통계 링크, 팔로우·피드·알림, 월 캘린더와 일별 상세, 취향분석, 보관함 → 라이브러리, 보호 경로 복귀 |
 | **게임 특화** (왓챠에 없음) | 7단계 플레이 상태, 진행도(%·텍스트), 플랫폼, 플레이 시간, 시작·엔딩·100% 이벤트 날짜, 개발사/퍼블리셔 구분, 장르/태그 이원화, 좋아하는 게임회사, 외부 게임 메타데이터(IGDB), 수동 게임 등록 |
 | **제외** | 앱 설치 유도, 광고, 매거진, 이벤트, 예상 별점·추천(후속), 컬렉션(후속), OTT 구독 |
