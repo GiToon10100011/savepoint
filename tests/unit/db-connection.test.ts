@@ -4,6 +4,7 @@ import {
   randomPassword,
   toPooledUrl,
   withCredentials,
+  withVerifyFull,
 } from "@/server/db/connection";
 
 // 테스트에는 가짜 호스트와 값만 쓴다.
@@ -25,6 +26,20 @@ describe("toPooledUrl", () => {
     const u = new URL(toPooledUrl(DIRECT));
     expect(u.pathname).toBe("/neondb");
     expect(u.searchParams.get("sslmode")).toBe("require");
+  });
+});
+
+describe("withVerifyFull", () => {
+  it("sslmode를 verify-full로 바꾸고 나머지는 유지한다", () => {
+    const u = new URL(withVerifyFull(DIRECT));
+    expect(u.searchParams.get("sslmode")).toBe("verify-full");
+    expect(u.hostname).toBe("ep-cool-123.ap-southeast-1.aws.neon.tech");
+    expect(u.pathname).toBe("/neondb");
+  });
+
+  it("sslmode가 없어도 추가한다", () => {
+    const u = new URL(withVerifyFull("postgresql://u:p@host.example/db"));
+    expect(u.searchParams.get("sslmode")).toBe("verify-full");
   });
 });
 

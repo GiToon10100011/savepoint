@@ -8,6 +8,16 @@ export function toPooledUrl(url: string): string {
   return u.toString();
 }
 
+/**
+ * `sslmode=verify-full`을 명시한다. pg 다음 메이저부터 `require`가 인증서를 검증하지 않는
+ * libpq 의미로 바뀌므로, 지금의 안전한 동작(서버 인증서와 호스트 이름 검증)을 고정한다.
+ */
+export function withVerifyFull(url: string): string {
+  const u = new URL(url);
+  u.searchParams.set("sslmode", "verify-full");
+  return u.toString();
+}
+
 /** 호스트·DB·쿼리는 유지하고 사용자 이름과 비밀번호만 바꾼다. */
 export function withCredentials(url: string, user: string, password: string): string {
   const u = new URL(url);
