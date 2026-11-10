@@ -52,6 +52,7 @@ tests/                      # unit/, db/, e2e/
 4. `withUser`는 트랜잭션을 열고 `set_config('app.user_id', …, true)`를 설정한 뒤 `app_user` 권한으로 질의한다. 풀링된 연결(트랜잭션 모드)에서도 안전하도록 항상 `is_local = true`를 쓴다.
 5. RLS가 두 번째 방어선이다(정책은 [데이터 모델 §5](data-model.md#5-rls-정책)).
 6. 비밀 값(`DATABASE_URL`, `NEON_AUTH_COOKIE_SECRET`, IGDB 키)은 서버 환경 변수로만 쓰고 클라이언트 번들에 넣지 않는다. `.env*`는 커밋하지 않는다.
+7. **카탈로그 쓰기(IGDB 가져오기)만 예외**로 `catalog_writer` 역할을 쓴다([§4.3](#43-연동-방식)). `app_user`는 게임 메타데이터 테이블을 읽기만 한다(수동 등록 제외).
 
 ## 4. 게임 메타데이터와 외부 API
 
@@ -79,7 +80,11 @@ tests/                      # unit/, db/, e2e/
 ### 4.3 연동 방식
 
 - `server/igdb/client.ts`: 앱 토큰을 메모리에 캐시하고 만료 전에 갱신, 큐로 초당 4건 이하를 유지하며 429는 지수 백오프한다. `server-only`로 클라이언트 번들 유입을 막는다.
-- 검색: 내부 DB를 먼저 조회(trigram)하고 결과가 20건 미만이면 IGDB를 조회해 후보를 보여준다. 후보를 선택하면 `import.ts`가 게임·회사·장르·태그·플랫폼을 한 트랜잭션으로 upsert한다(`UNIQUE (source, external_id)`로 중복 방지).
+- **검색**: 내부 DB를 먼저 조회(trigram)하고 결과가 20건 미만이면 IGDB를 조회해 후보를 보여준다. 이 단계는 **읽기 전용**이라 비로그인 사용자도 쓸 수 있다.
+- **후보 열기(미리보기)**: 아직 가져오지 않은 후보는 `/games/igdb-{igdbId}`로 연결한다. 서버가 IGDB에서 조회한 결과를 캐시해 렌더링하며 **DB에 쓰지 않는다**. 비로그인 사용자는 미리보기까지 볼 수 있고, `내 기록` 영역은 `로그인하고 기록하기`로 보인다.
+- **가져오기(import)**: 로그인한 사용자가 처음으로 쓰기 동작(라이브러리 추가·평가·리뷰)을 하면 같은 Server Action 안에서 `import.ts`가 게임·회사·장르·태그·플랫폼을 한 트랜잭션으로 upsert한 뒤 요청한 동작을 수행한다(`UNIQUE (source, external_id)`로 멱등). 이후에는 `/games/{slug}`로 영구 연결된다. 쓰기에는 세션이 필요하다는 원칙은 그대로 유지된다.
+- **권한 분리**: `import.ts`는 `app_user`가 아니라 **`catalog_writer` 역할**(별도 커넥션 풀, 환경 변수 `DATABASE_URL_CATALOG`)로 실행한다. 이 역할은 `games`·`game_companies`·`genres`·`tags`·`platforms`와 연결 테이블에만 INSERT·UPDATE 권한이 있고 사용자 기록 테이블에는 접근할 수 없다. `app_user`는 이 테이블들을 계속 읽기만 한다(수동 등록 예외는 [데이터 모델 §5](data-model.md#5-rls-정책)).
+- **가져오기 전 인가 검사**: ① 유효한 세션 ② 클라이언트가 보낸 메타데이터를 신뢰하지 않고 **IGDB ID만 받아 서버가 IGDB에서 직접 조회** ③ 사용자별 가져오기 횟수 제한(초기값 분당 10건) ④ ID 형식·범위 검증.
 - 매핑: IGDB 장르·테마·키워드·플레이어 시점을 내부 장르 15개와 태그로 변환한다(예: 시점 `First person` + 슈터 → FPS, 키워드 `roguelike` → 로그라이크). 실제 값은 구현 시 IGDB 응답으로 검증하고 `mapper.ts` 표로 관리한다.
 - 이미지: 커버 URL의 크기 접미사를 바꿔 쓰고, `next/image`의 `remotePatterns`에 `images.igdb.com`을 등록한다.
 - 키는 서버 환경 변수 `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`로만 둔다.
@@ -130,7 +135,7 @@ CI(GitHub Actions): lint → typecheck → 단위 → (비밀 값이 필요한 D
 
 | 순서 | 브랜치 | 범위 | 완료 기준 |
 |---|---|---|---|
-| 0 | `chore/scaffold` | Next.js·Tailwind·Vitest·Playwright·CI 스캐폴드, Neon 프로젝트·브랜치(dev/test) 연결, `app_user` 역할 | `npm run lint && typecheck && test` 통과, 로컬 기동 |
+| 0 | `chore/scaffold` | Next.js·Tailwind·Vitest·Playwright·CI 스캐폴드, Neon 프로젝트·브랜치(dev/test) 연결, `app_user`·`catalog_writer` 역할 | `npm run lint && typecheck && test` 통과, 로컬 기동 |
 | 1 | `feat/design-system` | 토큰·타이포·공통 컴포넌트·내비·`/dev/ui` 확인 페이지 | 위반 항목 0(radius·그림자) |
 | 2 | `feat/auth` | Neon Auth, 가입·로그인·로그아웃, 보호 경로, profile upsert | 새로고침 후 세션 유지, 보호 경로 리다이렉트 |
 | 3 | `feat/games-search` | 스키마, IGDB 어댑터(**Twitch 키 필요**), 수동 등록, 검색·페이지네이션, 시드 | 검색 → 가져오기 → 중복 없음 |

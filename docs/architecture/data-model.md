@@ -241,14 +241,14 @@ erDiagram
 
 ## 5. RLS 정책
 
-앱은 `BYPASSRLS`가 없는 `app_user` 역할로 접속하고, 요청마다 트랜잭션 안에서 `set_config('app.user_id', <profile uuid>, true)`와 `set_config('app.auth_user_id', <auth id>, true)`를 설정한다. 모든 테이블에 `ENABLE ROW LEVEL SECURITY`를 적용한다. 마이그레이션·시드는 소유자 역할로 실행한다.
+앱은 `BYPASSRLS`가 없는 `app_user` 역할로 접속하고, 요청마다 트랜잭션 안에서 `set_config('app.user_id', <profile uuid>, true)`와 `set_config('app.auth_user_id', <auth id>, true)`를 설정한다. 모든 테이블에 `ENABLE ROW LEVEL SECURITY`를 적용한다. 마이그레이션·시드는 소유자 역할로 실행하고, **IGDB 가져오기만 별도의 `catalog_writer` 역할**(카탈로그 테이블 INSERT·UPDATE만 가능, 사용자 기록 테이블 접근 불가)로 실행한다.
 
 `me() = nullif(current_setting('app.user_id', true), '')::uuid`
 
 | 테이블 | SELECT | INSERT / UPDATE / DELETE |
 |---|---|---|
 | `profiles` | 모두 | INSERT: `auth_user_id = current_setting('app.auth_user_id', true)`. UPDATE: `id = me()` |
-| `games`, 분류·회사·연결 테이블 | 모두 | 서버 전용(앱 역할은 읽기). 수동 등록은 `created_by = me()`인 행만 INSERT·UPDATE |
+| `games`, 분류·회사·연결 테이블 | 모두 | `app_user`는 **읽기 전용**이며 예외는 수동 등록뿐이다. `games`는 `source = 'manual' AND created_by = me()`인 행만 INSERT·UPDATE, 연결 테이블은 해당 게임의 `created_by = me()`일 때만, `game_companies`·`tags`는 `igdb_id IS NULL`인 수동 행 INSERT만 허용한다. IGDB 가져오기는 `catalog_writer`가 수행한다 |
 | `user_games` | 모두 | `user_id = me()` |
 | `user_game_notes` | 소유자(`user_games.user_id = me()`) | 소유자 |
 | `game_ratings` | 모두 | `user_id = me()` |
