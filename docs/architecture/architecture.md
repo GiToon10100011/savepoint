@@ -83,7 +83,7 @@ tests/                      # unit/, db/, e2e/
 - **검색**: 내부 DB를 먼저 조회(trigram)하고 결과가 20건 미만이면 IGDB를 조회해 후보를 보여준다. 이 단계는 **읽기 전용**이라 비로그인 사용자도 쓸 수 있다.
 - **후보 열기(미리보기)**: 아직 가져오지 않은 후보는 `/games/igdb-{igdbId}`로 연결한다. 서버가 IGDB에서 조회한 결과를 캐시해 렌더링하며 **DB에 쓰지 않는다**. 비로그인 사용자는 미리보기까지 볼 수 있고, `내 기록` 영역은 `로그인하고 기록하기`로 보인다.
 - **가져오기(import)**: 로그인한 사용자가 처음으로 쓰기 동작(라이브러리 추가·평가·리뷰)을 하면 같은 Server Action 안에서 `import.ts`가 게임·회사·장르·태그·플랫폼을 한 트랜잭션으로 upsert한 뒤 요청한 동작을 수행한다(`UNIQUE (source, external_id)`로 멱등). 이후에는 `/games/{slug}`로 영구 연결된다. 쓰기에는 세션이 필요하다는 원칙은 그대로 유지된다.
-- **권한 분리**: `import.ts`는 `app_user`가 아니라 **`catalog_writer` 역할**(별도 커넥션 풀, 환경 변수 `DATABASE_URL_CATALOG`)로 실행한다. 이 역할은 `games`·`game_companies`·`genres`·`tags`·`platforms`와 연결 테이블에만 INSERT·UPDATE 권한이 있고 사용자 기록 테이블에는 접근할 수 없다. `app_user`는 이 테이블들을 계속 읽기만 한다(수동 등록 예외는 [데이터 모델 §5](data-model.md#5-rls-정책)).
+- **권한 분리**: `import.ts`는 `app_user`가 아니라 **`catalog_writer` 역할**(별도 커넥션 풀, 환경 변수 `DATABASE_URL_CATALOG`)로 실행한다. 이 역할은 `games`·`game_companies`·`genres`·`tags`·`platforms`와 연결 테이블에만 **INSERT·UPDATE와 필요한 SELECT** 권한이 있다. `INSERT … ON CONFLICT`의 충돌 검사와 `RETURNING`에는 SELECT가 필요하므로, 해당 카탈로그 테이블의 읽기 권한과 이를 허용하는 RLS 정책을 함께 부여한다. 사용자 기록 테이블에는 접근할 수 없다. `app_user`는 이 테이블들을 계속 읽기만 한다(수동 등록 예외는 [데이터 모델 §5](data-model.md#5-rls-정책)).
 - **가져오기 전 인가 검사**: ① 유효한 세션 ② 클라이언트가 보낸 메타데이터를 신뢰하지 않고 **IGDB ID만 받아 서버가 IGDB에서 직접 조회** ③ 사용자별 가져오기 횟수 제한(초기값 분당 10건) ④ ID 형식·범위 검증.
 - 매핑: IGDB 장르·테마·키워드·플레이어 시점을 내부 장르 15개와 태그로 변환한다(예: 시점 `First person` + 슈터 → FPS, 키워드 `roguelike` → 로그라이크). 실제 값은 구현 시 IGDB 응답으로 검증하고 `mapper.ts` 표로 관리한다.
 - 이미지: 커버 URL의 크기 접미사를 바꿔 쓰고, `next/image`의 `remotePatterns`에 `images.igdb.com`을 등록한다.

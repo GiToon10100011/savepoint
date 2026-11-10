@@ -241,7 +241,7 @@ erDiagram
 
 ## 5. RLS 정책
 
-앱은 `BYPASSRLS`가 없는 `app_user` 역할로 접속하고, 요청마다 트랜잭션 안에서 `set_config('app.user_id', <profile uuid>, true)`와 `set_config('app.auth_user_id', <auth id>, true)`를 설정한다. 모든 테이블에 `ENABLE ROW LEVEL SECURITY`를 적용한다. 마이그레이션·시드는 소유자 역할로 실행하고, **IGDB 가져오기만 별도의 `catalog_writer` 역할**(카탈로그 테이블 INSERT·UPDATE만 가능, 사용자 기록 테이블 접근 불가)로 실행한다.
+앱은 `BYPASSRLS`가 없는 `app_user` 역할로 접속하고, 요청마다 트랜잭션 안에서 `set_config('app.user_id', <profile uuid>, true)`와 `set_config('app.auth_user_id', <auth id>, true)`를 설정한다. 모든 테이블에 `ENABLE ROW LEVEL SECURITY`를 적용한다. 마이그레이션·시드는 소유자 역할로 실행하고, **IGDB 가져오기만 별도의 `catalog_writer` 역할**(카탈로그 테이블에 한해 INSERT·UPDATE와 `ON CONFLICT`·`RETURNING`에 필요한 SELECT만 가능하며 이를 허용하는 RLS 정책을 둔다. 사용자 기록 테이블 접근 불가)로 실행한다.
 
 `me() = nullif(current_setting('app.user_id', true), '')::uuid`
 
