@@ -155,7 +155,7 @@ erDiagram
 |---|---|---|
 | `platforms` | `id` smallint PK, `slug` UNIQUE, `name`, `igdb_id` | 시드: PC, PS5, PS4, Switch, Xbox Series, Xbox One, iOS, Android |
 | `genres` | `id` smallint PK, `slug` UNIQUE, `name` | 기본 분류. 시드는 명세 H절 |
-| `tags` | `id` int PK, `slug` UNIQUE, `name`, `source` | 세부 특징. 사용자·IGDB가 추가 가능 |
+| `tags` | `id` int PK, `slug` UNIQUE, `name`, `source` game_source(`igdb`/`manual`) | 세부 특징. 사용자·IGDB가 추가 가능 |
 | `game_companies` | `id` uuid PK, `slug` UNIQUE, `name`, `name_ko`, `igdb_id` UNIQUE NULL, `country` | 게임과 별도. 검색용 trigram 인덱스 |
 | `game_genres` / `game_tags` / `game_platforms` | PK(`game_id`, `genre_id`/`tag_id`/`platform_id`) | N:M |
 | `game_developers` / `game_publishers` | PK(`game_id`, `company_id`) | **개발사와 퍼블리셔를 별도 테이블로 구분**, 한 게임에 여러 회사 가능 |
@@ -250,7 +250,7 @@ erDiagram
 | 테이블 | SELECT | INSERT / UPDATE / DELETE |
 |---|---|---|
 | `profiles` | 모두 | INSERT: `auth_user_id = current_setting('app.auth_user_id', true)`. UPDATE: `id = me()` |
-| `games`, 분류·회사·연결 테이블 | 모두 | `app_user`는 **읽기 전용**이며 예외는 수동 등록뿐이다. `games`는 `source = 'manual' AND created_by = me()`인 행만 INSERT·UPDATE, 연결 테이블은 해당 게임의 `created_by = me()`일 때만, `game_companies`·`tags`는 `igdb_id IS NULL`인 수동 행 INSERT만 허용한다. IGDB 가져오기는 `catalog_writer`가 수행한다 |
+| `games`, 분류·회사·연결 테이블 | 모두 | `app_user`는 **읽기 전용**이며 예외는 수동 등록뿐이다. `games`는 `source = 'manual' AND created_by = me()`인 행만 INSERT·UPDATE, 연결 테이블은 해당 게임의 `created_by = me()`일 때만, `game_companies`는 `igdb_id IS NULL`인 행, `tags`는 `source = 'manual'`인 행만 INSERT를 허용한다. IGDB 가져오기는 `catalog_writer`가 수행한다 |
 | `user_games` | 모두 | `user_id = me()` |
 | `user_game_notes` | 소유자(`user_games.user_id = me()`) | 소유자 |
 | `game_ratings` | 모두 | `user_id = me()` |
