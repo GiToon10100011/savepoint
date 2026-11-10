@@ -239,6 +239,8 @@ erDiagram
 
 별도 트리거: `game_ratings` 변경 → `games.rating_count/rating_sum` 증감, `game_review_likes` 변경 → `game_reviews.like_count` 증감.
 
+**모든 동기화·카운터 트리거 함수는 `SECURITY DEFINER`로 만들고 `SET search_path = public, pg_temp`를 고정한다.** 호출한 역할(`app_user`)은 `games`의 카운터 컬럼, 타인의 `game_reviews.like_count`, 파생 이벤트를 직접 수정할 권한이 없기 때문이다. 함수 소유자는 해당 테이블 쓰기 권한만 가진 전용 역할(`trigger_owner`)로 하고, 함수 본문은 카운터·이벤트 행만 갱신하며 호출자가 넘긴 값을 SQL 문자열로 조립하지 않는다.
+
 ## 5. RLS 정책
 
 앱은 `BYPASSRLS`가 없는 `app_user` 역할로 접속하고, 요청마다 트랜잭션 안에서 `set_config('app.user_id', <profile uuid>, true)`와 `set_config('app.auth_user_id', <auth id>, true)`를 설정한다. 모든 테이블에 `ENABLE ROW LEVEL SECURITY`를 적용한다. 마이그레이션·시드는 소유자 역할로 실행하고, **IGDB 가져오기만 별도의 `catalog_writer` 역할**(카탈로그 테이블에 한해 INSERT·UPDATE와 `ON CONFLICT`·`RETURNING`에 필요한 SELECT만 가능하며 이를 허용하는 RLS 정책을 둔다. 사용자 기록 테이블 접근 불가)로 실행한다.
@@ -256,7 +258,7 @@ erDiagram
 | `game_review_likes` | 모두 | `user_id = me()` 그리고 대상 리뷰의 작성자가 `me()`가 아님 |
 | `user_follows` | 모두 | INSERT·DELETE: `follower_id = me()` (자기 팔로우는 CHECK로 차단) |
 | `user_favorite_companies` | 모두 | `user_id = me()` |
-| `game_play_events` | `is_public OR user_id = me()` | 사용자는 `source = 'manual'`이고 `event_type = 'play_session'`, `user_id = me()`인 행만. 파생 이벤트는 트리거(함수 소유자 권한)만 |
+| `game_play_events` | `is_public OR user_id = me()` | 사용자는 `source = 'manual'`이고 `event_type = 'play_session'`, `user_id = me()`인 행만. 파생 이벤트는 `SECURITY DEFINER` 트리거 함수(고정 `search_path`)만 |
 
 앱 서버에서도 모든 Server Action마다 세션을 확인하고 소유권을 검사한다. **RLS는 서버 버그에 대비한 두 번째 방어선**이다. 테스트는 사용자 A의 컨텍스트로 B의 행을 수정·삭제할 때 0행 또는 오류가 나는지 확인한다.
 
