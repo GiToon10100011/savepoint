@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# env / secrets (never commit)
+.env
+.env.*
+!.env.example
+
+# neon local link
+.neon
+
+# testing
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# REA 작업 중 생성되는 로그인 세션·원본 캡처 (커밋 금지)
+.rea-work/
+*.storageState.json
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/
+
+# logs
+*.log
+npm-debug.log*
+
+# vercel
+.vercel/
+
+# typescript
+*.tsbuildinfo
