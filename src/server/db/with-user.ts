@@ -29,6 +29,8 @@ export async function runAsUser<T>(
   }
 
   const client = await pool.connect();
+  // 롤백까지 실패하면 연결 상태를 알 수 없으므로 풀로 돌려보내지 않고 폐기한다.
+  let discard = false;
   try {
     await client.query("begin");
     await client.query(
@@ -39,9 +41,11 @@ export async function runAsUser<T>(
     await client.query("commit");
     return result;
   } catch (error) {
-    await client.query("rollback").catch(() => {});
+    await client.query("rollback").catch(() => {
+      discard = true;
+    });
     throw error;
   } finally {
-    client.release();
+    client.release(discard);
   }
 }
