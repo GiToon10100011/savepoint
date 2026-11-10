@@ -27,9 +27,19 @@ const ROLES: RoleSpec[] = [
 async function ensureRole(client: Client, role: RoleSpec, password?: string) {
   const exists = (await client.query("select 1 from pg_roles where rolname = $1", [role.name]))
     .rowCount;
-  const verb = exists ? "ALTER" : "CREATE";
+  if (exists) {
+    // 이미 있는 역할은 권한 속성(SUPERUSER·BYPASSRLS 등)을 다시 지정하지 않는다. 같은 값이라도 소유자
+    // 역할(superuser 아님)은 ALTER할 수 없어 거부된다. 속성은 만들 때 고정했고 아래 검증이 매번 확인한다.
+    if (!password) return;
+    const { rows } = await client.query("select format('ALTER ROLE %I PASSWORD %L', $1::text, $2::text) as sql", [
+      role.name,
+      password,
+    ]);
+    await client.query(rows[0].sql);
+    return;
+  }
   const attrs = role.login ? "LOGIN" : "NOLOGIN";
-  const base = `${verb} ROLE %I ${attrs} NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`;
+  const base = `CREATE ROLE %I ${attrs} NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`;
   const { rows } = password
     ? await client.query("select format($1 || ' PASSWORD %L', $2::text, $3::text) as sql", [
         base,
