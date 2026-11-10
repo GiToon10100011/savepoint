@@ -135,7 +135,7 @@ CI(GitHub Actions): lint → typecheck → 단위 → (비밀 값이 필요한 D
 
 | 순서 | 브랜치 | 범위 | 완료 기준 |
 |---|---|---|---|
-| 0 | `chore/scaffold` | Next.js·Tailwind·Vitest·Playwright·CI 스캐폴드, Neon 프로젝트·브랜치(dev/test) 연결, `app_user`·`catalog_writer` 역할 | `npm run lint && typecheck && test` 통과, 로컬 기동 |
+| 0 | `chore/scaffold` | Next.js·Tailwind·Vitest·Playwright·CI 스캐폴드, Neon 프로젝트·브랜치(dev/test) 연결, `app_user`·`catalog_writer`·`trigger_owner` 역할 | `npm run lint && typecheck && test` 통과, 로컬 기동 |
 | 1 | `feat/design-system` | 토큰·타이포·공통 컴포넌트·내비·`/dev/ui` 확인 페이지 | 위반 항목 0(radius·그림자) |
 | 2 | `feat/auth` | Neon Auth, 가입·로그인·로그아웃, 보호 경로, profile upsert | 새로고침 후 세션 유지, 보호 경로 리다이렉트 |
 | 3 | `feat/games-search` | 스키마, IGDB 어댑터(**Twitch 키 필요**), 수동 등록, 검색·페이지네이션, 시드 | 검색 → 가져오기 → 중복 없음 |
