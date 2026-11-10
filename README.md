@@ -37,6 +37,28 @@ npm run dev                  # http://localhost:3000
 
 Neon CLI는 전역 설치 대신 프로젝트에 고정된 버전을 쓴다: `npx neon <명령>`.
 
+### Neon 설정 (최초 1회)
+
+```bash
+npx neon login --profile DEFAULT
+# 프로젝트가 없을 때만: 만들고 연결한다 (이미 있으면 `npx neon link --project-id <ID>`)
+npx neon link --org-id <조직 ID> --project-name savepoint --region-id aws-ap-southeast-1 --no-env-pull -y
+npx neon checkout dev --create --no-env-pull    # 개발 브랜치
+npx neon checkout test --create --no-env-pull   # DB 통합 테스트 전용 브랜치
+```
+
+브랜치마다 앱 역할(`app_user`, `catalog_writer`, `trigger_owner`)과 연결 문자열을 만든다.
+
+```bash
+DATABASE_URL_ADMIN="$(npx neon connection-string dev)"  npm run db:setup-roles -- .env.local
+DATABASE_URL_ADMIN="$(npx neon connection-string test)" npm run db:setup-roles -- .env.test.local
+npm run test:db   # 풀링 연결에서 RLS 설정값이 새지 않는지 등을 test 브랜치로 검증
+```
+
+- 역할은 SQL로 만든다. 콘솔·CLI로 만든 역할은 `BYPASSRLS` 그룹에 들어가 RLS가 무력화된다.
+- 스크립트는 여러 번 실행해도 안전하며 실행할 때마다 비밀번호를 새로 만든다. 비밀번호는 출력하지 않고 env 파일(권한 600)에만 쓴다.
+- `.env.local`, `.env.test.local`, `.neon`은 커밋하지 않는다.
+
 이 저장소의 Next.js는 `cacheComponents`와 `partialPrefetching`이 켜져 있어 기존 버전과 규칙이 다르다. 코드를 쓰기 전에 `node_modules/next/dist/docs/`의 해당 문서를 읽는다([`AGENTS.md`](AGENTS.md)).
 
 ## 디자인
