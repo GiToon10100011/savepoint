@@ -6,10 +6,9 @@
  * 역할은 SQL로 만든다. 콘솔·CLI로 만든 역할은 neon_superuser(BYPASSRLS) 그룹에 들어가
  * RLS가 무력화되기 때문이다. 여러 번 실행해도 안전하며, 실행할 때마다 비밀번호를 새로 만든다.
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { Client } from "pg";
+import { writeSecretEnvFile } from "../../src/server/db/env-file";
 import {
-  mergeEnv,
   randomPassword,
   toPooledUrl,
   withCredentials,
@@ -79,8 +78,7 @@ async function main() {
     await admin.end();
   }
 
-  const current = existsSync(envFile) ? readFileSync(envFile, "utf8") : "";
-  writeFileSync(envFile, mergeEnv(current, updates), { mode: 0o600 });
+  writeSecretEnvFile(envFile, updates);
   console.log(`wrote ${Object.keys(updates).join(", ")} -> ${envFile}`);
 
   // 풀링 연결로 실제 접속해 RLS를 우회하지 않는 역할인지 확인한다.
