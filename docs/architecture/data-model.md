@@ -167,7 +167,7 @@ erDiagram
 |---|---|---|
 | `id` | uuid | PK |
 | `user_id`, `game_id` | uuid | FK, **UNIQUE (user_id, game_id)** |
-| `status` | play_status | NOT NULL |
+| `status` | play_status | **NULL 허용** — 상태를 지정하지 않고 등록할 수 있다(상태 미지정). 값이 있으면 7개 중 하나 |
 | `platform_id` | smallint | FK NULL |
 | `added_at` | timestamptz | 시스템. 게임 등록일 |
 | `started_on`, `cleared_on`, `perfected_on` | date | 사용자 입력, NULL 허용 |
