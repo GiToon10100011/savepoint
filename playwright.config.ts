@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = 3100;
 
 // iPhone 프로필은 기본 브라우저가 WebKit이다. 이 프로젝트는 Chromium만 설치해 쓰므로 Chromium으로 고정한다.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 구조 분해로 키를 제거하는 용도
 const { defaultBrowserType: _ignored, ...iphone } = devices["iPhone 14"];
 
 export default defineConfig({
