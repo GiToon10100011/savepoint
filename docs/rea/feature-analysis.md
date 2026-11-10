@@ -89,7 +89,7 @@
 | 사용자 목적 | 지금 화제인 작품을 발견한다 |
 | UI 구조 | 히어로 카드 → 바로가기 → HOT 랭킹(순위 변동 표시) → 인물 랭킹 → 공개 예정작 |
 | 인터랙션 | 카드 → 상세. 가로 스크롤 레일 |
-| 핵심 데이터 | `GET /api/home/unification`, `/rankings?chart_id=galaxy_hot`, `/person_rankings`, `/movie/upcomings` |
+| 핵심 데이터 | `GET /api/home/unification`, `GET /api/home/unification/rankings?chart_id=galaxy_hot`, `GET /api/home/unification/person_rankings`, `GET /api/home/movie/upcomings?content_type=movies` |
 | 게임 버전 적용 | 변형 적용 |
 | 적용 이유 | 초기에는 "인기 게임 / 최근 등록 / 출시 예정" 3개 레일로 단순화한다. 순위 변동 표시는 후속 |
 
@@ -265,11 +265,11 @@
 | 평가 등록/취소 | `POST`·`DELETE /api/contents/{id}/ratings` (본문 `{"rating": n}`, 3.5점 → `7`만 확인) |
 | 보고싶어요 | `POST`·`DELETE /api/contents/{id}/wish` |
 | 보는 중 | `POST`·`DELETE /api/contents/{id}/doing` |
-| 콘텐츠 상세 | `GET /api/contents/{id}`, `/credits?size=12&page=1`, `/decks`, `/comments?filter=&order=` |
+| 콘텐츠 상세 | `GET /api/contents/{id}`, `GET /api/contents/{id}/credits?size=12&page=1`, `GET /api/contents/{id}/decks`, `GET /api/contents/{id}/comments?filter=&order=` |
 | 코멘트 댓글 | `GET /api/comments/{id}/replies?replies_size=9` |
-| 검색 | `GET /api/searches/search_token`, `/autocomplete?query=`, `/searches?query=` |
-| 캘린더 | `GET /api/users/{id}/ratings/{YYYY}/{M}`, `/user_month_report/{YYYY}/{M}/ratings` |
-| 홈 | `GET /api/home/unification`, `/rankings`, `/person_rankings`, `/movie/upcomings` |
+| 검색 | `GET /api/searches/search_token`, `GET /api/searches/autocomplete?query=`, `GET /api/searches?query=` |
+| 캘린더 | `GET /api/users/{id}/ratings/{YYYY}/{M}`, `GET /api/users/{id}/user_month_report/{YYYY}/{M}/ratings` |
+| 홈 | `GET /api/home/unification`, `GET /api/home/unification/rankings?chart_id=galaxy_hot`, `GET /api/home/unification/person_rankings`, `GET /api/home/movie/upcomings?content_type=movies` |
 | 알림 | `GET /api/notifications/unread` |
 | 응답 형식 | `{"metadata": ..., "result": ...}` 래퍼 |
 
