@@ -14,6 +14,13 @@ async function userSetting() {
   return rows[0].v ?? "";
 }
 
+describe("테스트 설정", () => {
+  it("풀링(트랜잭션 모드) 호스트로 접속한다", () => {
+    // 직접 연결이면 설정값 누수 검증이 의미가 없으므로 설정 오류를 바로 드러낸다.
+    expect(new URL(process.env.DATABASE_URL as string).hostname).toContain("-pooler");
+  });
+});
+
 describe("app_user 역할", () => {
   it("RLS를 우회하지 않는 일반 역할이다", async () => {
     const { rows } = await pool.query(
