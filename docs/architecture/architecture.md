@@ -48,8 +48,8 @@ tests/                      # unit/, db/, e2e/
 
 1. `app/api/auth/[...path]/route.ts`가 Neon Auth 핸들러를 노출하고, `proxy.ts`가 보호 경로를 막는다(공개 경로는 `/`, `/search`, `/games/*`, `/u/*` 등을 명시).
 2. 첫 세션에서 `profiles`를 upsert한다(handle 설정 화면으로 유도).
-3. **모든 쓰기는 Server Action**이며 순서는 `세션 확인 → 입력 검증(zod) → withUser(profileId, tx => …)`다.
-4. `withUser`는 트랜잭션을 열고 `set_config('app.user_id', …, true)`를 설정한 뒤 `app_user` 권한으로 질의한다. 풀링된 연결(트랜잭션 모드)에서도 안전하도록 항상 `is_local = true`를 쓴다.
+3. **모든 쓰기는 Server Action**이며 순서는 `세션 확인 → 입력 검증(zod) → withUser({ authUserId, profileId }, tx => …)`다. 첫 로그인처럼 프로필이 아직 없으면 `profileId`는 생략한다.
+4. `withUser`는 트랜잭션을 열고 `set_config('app.user_id', <profileId>, true)`와 `set_config('app.auth_user_id', <세션의 auth 사용자 ID>, true)`를 **둘 다** 설정한 뒤 `app_user` 권한으로 질의한다(프로필 생성 시에는 `app.user_id`가 비어 있고 `app.auth_user_id`만 RLS에 쓰인다). 풀링된 연결(트랜잭션 모드)에서도 안전하도록 항상 `is_local = true`를 쓴다.
 5. RLS가 두 번째 방어선이다(정책은 [데이터 모델 §5](data-model.md#5-rls-정책)).
 6. 비밀 값(`DATABASE_URL`, `NEON_AUTH_COOKIE_SECRET`, IGDB 키)은 서버 환경 변수로만 쓰고 클라이언트 번들에 넣지 않는다. `.env*`는 커밋하지 않는다.
 7. **카탈로그 쓰기(IGDB 가져오기)만 예외**로 `catalog_writer` 역할을 쓴다([§4.3](#43-연동-방식)). `app_user`는 게임 메타데이터 테이블을 읽기만 한다(수동 등록 제외).
