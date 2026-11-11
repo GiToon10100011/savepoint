@@ -1,8 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-const calendar = (page: Page, id: "calendar-mono" | "calendar-color") => page.getByTestId(id);
-const cell = (page: Page, date: string) => page.locator(`[data-testid="calendar-mono"] [data-date="${date}"]`);
+const calendar = (page: Page, id: "calendar-demo") => page.getByTestId(id);
+const cell = (page: Page, date: string) => page.locator(`[data-testid="calendar-demo"] [data-date="${date}"]`);
 
 /**
  * `/dev/ui`를 열고 클라이언트 컴포넌트가 **하이드레이션될 때까지** 기다린다.
@@ -175,18 +175,18 @@ test.describe("달력", () => {
 
   test("한 번에 한 칸만 탭 순서에 들어간다(roving tabindex)", async ({ page }) => {
     await openDevUi(page);
-    const focusable = calendar(page, "calendar-mono").locator('[data-date][tabindex="0"]');
+    const focusable = calendar(page, "calendar-demo").locator('[data-date][tabindex="0"]');
     await expect(focusable).toHaveCount(1);
   });
 
   test("달의 경계를 넘어 이동하면 월이 바뀌고 포커스가 따라간다", async ({ page }) => {
     await openDevUi(page);
-    const mono = calendar(page, "calendar-mono");
+    const mono = calendar(page, "calendar-demo");
 
     await cell(page, "2026-11-01").focus();
     await page.keyboard.press("ArrowLeft");
     await expect(mono.getByRole("heading", { name: "2026년 10월" })).toBeVisible();
-    await expect(page.locator('[data-testid="calendar-mono"] [data-date="2026-10-31"]')).toBeFocused();
+    await expect(page.locator('[data-testid="calendar-demo"] [data-date="2026-10-31"]')).toBeFocused();
 
     await page.keyboard.press("PageDown");
     await expect(mono.getByRole("heading", { name: "2026년 11월" })).toBeVisible();
@@ -202,19 +202,25 @@ test.describe("달력", () => {
     await expect(cell(page, "2026-11-10")).toHaveAttribute("aria-current", "date");
 
     await day.press("Enter");
-    await expect(calendar(page, "calendar-mono").getByText("11월 8일 · 3종")).toBeVisible();
+    await expect(calendar(page, "calendar-demo").getByText("11월 8일 · 3종")).toBeVisible();
   });
 
-  test("모노크롬 안과 색 안이 같은 글리프를 쓰고, 이벤트 색 토큰만 다르다", async ({ page }) => {
+  test("이벤트 글리프는 이벤트 색 토큰으로 칠해지고 인터페이스 글자색과 다르다", async ({ page }) => {
     await openDevUi(page);
-    const color = (id: "calendar-mono" | "calendar-color") =>
-      calendar(page, id).locator("svg").first().evaluate((el) => getComputedStyle(el).color);
-    // 같은 날짜 칸의 첫 글리프를 비교한다.
-    const mono = await page.locator('[data-testid="calendar-mono"] [data-date="2026-11-01"] svg').evaluate((el) => getComputedStyle(el).color);
-    const colored = await page.locator('[data-testid="calendar-color"] [data-date="2026-11-01"] svg').evaluate((el) => getComputedStyle(el).color);
-    expect(mono).not.toBe(colored);
-    expect(await color("calendar-mono")).toBeTruthy();
-    expect(await calendar(page, "calendar-mono").locator("svg").count()).toBe(await calendar(page, "calendar-color").locator("svg").count());
+    const color = (selector: string) => page.locator(selector).first().evaluate((el) => getComputedStyle(el).color);
+    const glyph = await color('[data-testid="calendar-demo"] [data-date="2026-11-01"] svg'); // 플레이 시작
+    const text = await color('[data-testid="calendar-demo"] [data-date="2026-11-01"] span');
+    expect(glyph).toBe("rgb(47, 107, 69)"); // --event-play-start #2f6b45 (라이트)
+    expect(glyph).not.toBe(text);
+  });
+
+  test("색과 무관하게 이벤트 6종의 모양이 모두 다르다(색만으로 구분하지 않는다)", async ({ page }) => {
+    await openDevUi(page);
+    const shapes = await page.getByRole("list", { name: "이벤트 종류" }).locator("svg").evaluateAll((svgs) =>
+      svgs.map((svg) => svg.innerHTML),
+    );
+    expect(shapes).toHaveLength(6);
+    expect(new Set(shapes).size).toBe(6);
   });
 });
 
