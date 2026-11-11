@@ -99,15 +99,15 @@ export function TooltipDemo() {
   );
 }
 
-/** 모노크롬(기본)과 색 안을 나란히 비교하기 위한 달력. `colors`가 true면 이벤트 색 토큰을 켠다. */
-export function CalendarDemo({ colors, testId }: { colors: boolean; testId: string }) {
+/** 기록 달력 데모. 이벤트 색은 `--event-*` 토큰이 정한다(tokens.css). */
+export function CalendarDemo() {
   const [view, setView] = useState({ year: 2026, month: 11 });
   const [selected, setSelected] = useState<DateKey | null>(null);
   const dayEvents = selected ? DEMO_EVENTS[selected] : undefined;
   const types = presentEventTypes(dayEvents);
 
   return (
-    <div data-testid={testId} data-event-colors={colors ? "on" : undefined} className="border border-line bg-card p-4">
+    <div data-testid="calendar-demo" className="border border-line bg-card p-4">
       <CalendarHeader
         year={view.year}
         month={view.month}
