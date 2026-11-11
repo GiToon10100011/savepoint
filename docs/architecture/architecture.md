@@ -112,6 +112,14 @@ StudioBlank 규칙을 코드로 강제한다.
 - 커버 이미지는 크기 지정 + lazy loading, 뷰포트 밖은 지연 로딩.
 - 낙관적 업데이트(평가·좋아요·팔로우)로 체감 지연을 줄이되 실패 시 원복한다.
 
+### Cache Components 규칙 (Next 16.4 기본값)
+
+스캐폴드한 Next.js는 `cacheComponents`와 `partialPrefetching`이 켜져 있다. 번들 문서(`node_modules/next/dist/docs/01-app/01-getting-started/08-caching.md`)를 기준으로 다음 원칙을 따른다.
+
+- **요청 시점 데이터**(세션 쿠키, 사용자별 DB 조회)는 캐시하지 않고 `<Suspense>` 경계 안에서 읽어 스트리밍한다. 하단 내비의 `내 프로필` 링크처럼 공통 레이아웃이 세션을 읽는 경우에도 같은 경계를 둔다.
+- **사용자와 무관한 공개 데이터**(인기 게임, 게임 메타데이터, 평균 평점)는 `'use cache'`와 `cacheLife`로 캐시한다.
+- 변경 뒤의 무효화 방법과 규칙 위반 시의 오류 동작은 구현 단계에서 같은 문서(`09-revalidating.md` 등)로 확인한다. 이 문서는 추측으로 쓰지 않는다.
+
 ## 7. 접근성
 
 평가 `role="slider"`, 달력 `role="grid"` + 방향키, 이벤트 레이블 텍스트, 포커스 outline 2px, 터치 영역 44px, 모든 버튼에 이름. 평가 별이 이름 없는 SVG였던 REA의 결함을 반복하지 않는다.
