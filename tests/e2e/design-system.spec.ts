@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-const calendar = (page: Page, id: "calendar-demo") => page.getByTestId(id);
+const calendar = (page: Page) => page.getByTestId("calendar-demo");
 const cell = (page: Page, date: string) => page.locator(`[data-testid="calendar-demo"] [data-date="${date}"]`);
 
 /**
@@ -175,21 +175,21 @@ test.describe("달력", () => {
 
   test("한 번에 한 칸만 탭 순서에 들어간다(roving tabindex)", async ({ page }) => {
     await openDevUi(page);
-    const focusable = calendar(page, "calendar-demo").locator('[data-date][tabindex="0"]');
+    const focusable = calendar(page).locator('[data-date][tabindex="0"]');
     await expect(focusable).toHaveCount(1);
   });
 
   test("달의 경계를 넘어 이동하면 월이 바뀌고 포커스가 따라간다", async ({ page }) => {
     await openDevUi(page);
-    const mono = calendar(page, "calendar-demo");
+    const view = calendar(page);
 
     await cell(page, "2026-11-01").focus();
     await page.keyboard.press("ArrowLeft");
-    await expect(mono.getByRole("heading", { name: "2026년 10월" })).toBeVisible();
-    await expect(page.locator('[data-testid="calendar-demo"] [data-date="2026-10-31"]')).toBeFocused();
+    await expect(view.getByRole("heading", { name: "2026년 10월" })).toBeVisible();
+    await expect(cell(page, "2026-10-31")).toBeFocused();
 
     await page.keyboard.press("PageDown");
-    await expect(mono.getByRole("heading", { name: "2026년 11월" })).toBeVisible();
+    await expect(view.getByRole("heading", { name: "2026년 11월" })).toBeVisible();
     await expect(cell(page, "2026-11-30")).toBeFocused(); // 31일 → 11월은 30일까지라 맞춰진다
   });
 
@@ -202,7 +202,7 @@ test.describe("달력", () => {
     await expect(cell(page, "2026-11-10")).toHaveAttribute("aria-current", "date");
 
     await day.press("Enter");
-    await expect(calendar(page, "calendar-demo").getByText("11월 8일 · 3종")).toBeVisible();
+    await expect(calendar(page).getByText("11월 8일 · 3종")).toBeVisible();
   });
 
   test("이벤트 글리프는 이벤트 색 토큰으로 칠해지고 인터페이스 글자색과 다르다", async ({ page }) => {
