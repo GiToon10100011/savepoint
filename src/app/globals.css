@@ -56,6 +56,9 @@
     font-size: var(--text-body);
     font-weight: 300;
     line-height: 1.65;
+    /* 한글을 음절 중간에서 끊지 않고 띄어쓰기에서만 줄을 바꾼다. 공백 없는 긴 문자열은 넘치지 않게 끊는다. */
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
 
   :focus-visible {
