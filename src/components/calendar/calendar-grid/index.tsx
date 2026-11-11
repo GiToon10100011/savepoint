@@ -181,7 +181,8 @@ export function CalendarGrid({ year, month, events = {}, selected = null, today,
                     // 이미 이름("게임 평가 2건")에 있으므로 스크린리더에는 중복되지 않는다.
                     <span
                       aria-hidden="true"
-                      data-extra={[types.length > MAX_GLYPHS ? `+${types.length - MAX_GLYPHS}` : null, total > 1 ? String(total) : null]
+                      // `+1`은 글리프로 다 보여 주지 못한 종류 수, `×6`은 그날의 전체 건수다(구분자처럼 보이지 않게 ×를 붙인다).
+                      data-extra={[types.length > MAX_GLYPHS ? `+${types.length - MAX_GLYPHS}` : null, total > 1 ? `×${total}` : null]
                         .filter(Boolean)
                         .join(" ")}
                       className="flex flex-wrap items-center gap-1 after:type-mono after:text-muted after:content-[attr(data-extra)]"
