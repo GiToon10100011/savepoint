@@ -167,23 +167,15 @@ export default function DevUiPage() {
         <StatusDemo />
       </Section>
 
-      <Section id="calendar" title="기록 달력 — 모노크롬 안과 색 안">
+      <Section id="calendar" title="기록 달력">
         <p className="type-body-sm mb-4 max-w-prose">
-          두 달력은 같은 데이터입니다. 왼쪽(위)은 기본 모노크롬이고, 오른쪽(아래)은 채도를 낮춘 이벤트 색을 켠 비교용입니다. 두 경우 모두
-          모양(글리프)으로 구분되며, 색은 보조일 뿐입니다.
+          이벤트는 모양(글리프)과 이름으로 구분하고, 채도를 낮춘 색은 보조로 더합니다. 색을 구분하지 못해도 같은 정보를 얻을 수 있습니다.
         </p>
         <div className="mb-6">
           <CalendarLegend />
         </div>
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div>
-            <h3 className="type-h3 mb-2">모노크롬 (기본)</h3>
-            <CalendarDemo colors={false} testId="calendar-mono" />
-          </div>
-          <div>
-            <h3 className="type-h3 mb-2">색 안 (비교용)</h3>
-            <CalendarDemo colors testId="calendar-color" />
-          </div>
+        <div className="max-w-xl">
+          <CalendarDemo />
         </div>
       </Section>
     </main>

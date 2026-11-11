@@ -66,16 +66,20 @@
   --duration-fast: 120ms;
   --duration-base: 200ms;
 
-  /* 달력 이벤트: 기본은 모노크롬. 구분은 색이 아니라 글리프·레이블·패턴이 담당한다. */
-  --event-play-start: var(--color-text-primary);
-  --event-ending: var(--color-text-primary);
-  --event-complete: var(--color-text-primary);
-  --event-review: var(--color-text-primary);
-  --event-rating: var(--color-text-primary);
-  --event-session: var(--color-text-secondary);
+  /*
+   * 달력 이벤트 색. 인터페이스는 모노크롬을 유지하되 이벤트만 채도를 낮춘 색을 쓴다(사용자 선택, 2026-11-11).
+   * 색은 보조일 뿐이다: 이벤트는 글리프(모양)와 레이블로 구분되고, 색을 못 보는 사람도 같은 정보를 얻는다.
+   * 카드 배경(--color-surface-white) 위에서 3:1 이상의 대비를 유지해야 한다(tokens.test.ts가 검사한다).
+   */
+  --event-play-start: #2f6b45;
+  --event-ending: #2f5a8a;
+  --event-complete: #8a6a14;
+  --event-review: #6b4a8a;
+  --event-rating: #52525b;
+  --event-session: #71717a;
 }
 
-/* 다크 모드: 모노크롬 기조를 유지하며 기본/반전 색을 맞바꾼다. 게임 커버 이미지는 건드리지 않는다. */
+/* 다크 모드: 인터페이스는 모노크롬 기조로 기본/반전 색을 맞바꾼다. 게임 커버 이미지는 건드리지 않는다. */
 @media (prefers-color-scheme: dark) {
   :root {
     --color-primary: #fafafa;
@@ -100,24 +104,8 @@
 
     --color-surface-white: #111113;
     --color-surface-disabled: #18181b;
-  }
-}
 
-/*
- * 달력 이벤트 색 안(비교용, 기본 꺼짐). 모노크롬 기조와 어울리도록 채도를 낮춘 색이다.
- * `data-event-colors="on"`을 붙인 영역에서만 켜지며, 색만으로 구분하지 않는다(글리프·레이블이 항상 함께 표시된다).
- */
-[data-event-colors="on"] {
-  --event-play-start: #2f6b45;
-  --event-ending: #2f5a8a;
-  --event-complete: #8a6a14;
-  --event-review: #6b4a8a;
-  --event-rating: #52525b;
-  --event-session: #71717a;
-}
-
-@media (prefers-color-scheme: dark) {
-  [data-event-colors="on"] {
+    /* 어두운 카드 배경에서도 대비를 유지하도록 이벤트 색을 밝게 */
     --event-play-start: #6fcf97;
     --event-ending: #7fb0e6;
     --event-complete: #e6c35c;

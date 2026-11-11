@@ -60,16 +60,53 @@ describe("디자인 토큰", () => {
     expect(token("radius")).toBe("0");
   });
 
-  it("달력 이벤트 기본값은 모노크롬이다(색 토큰이 아니라 텍스트 색을 가리킨다)", () => {
-    for (const name of ["play-start", "ending", "complete", "review", "rating"]) {
-      expect(token(`event-${name}`)).toBe("var(--color-text-primary)");
-    }
-  });
+  describe("달력 이벤트 색", () => {
+    const darkBlock = css.match(/@media \(prefers-color-scheme: dark\)\s*\{\s*:root\s*\{([\s\S]*?)\n\s*\}/)?.[1] ?? "";
+    const darkToken = (name: string) => darkBlock.match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1].trim();
+    const EVENTS = ["play-start", "ending", "complete", "review", "rating", "session"];
 
-  it("색 안은 data-event-colors로 켤 때만 적용된다", () => {
-    expect(css).toMatch(/\[data-event-colors="on"\]\s*\{/);
-    // 기본 :root 블록에는 색 값(#hex)이 이벤트 토큰에 없어야 한다.
-    expect(lightRoot).not.toMatch(/--event-[a-z-]+:\s*#/);
+    /** WCAG 상대 휘도와 대비비. */
+    const luminance = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+      const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    };
+    const contrast = (a: string, b: string) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+
+    it("라이트·다크 모두 #rrggbb 색으로 정의돼 있다(모노크롬 참조가 아니다)", () => {
+      for (const name of EVENTS) {
+        expect(token(`event-${name}`), `light ${name}`).toMatch(/^#[0-9a-f]{6}$/);
+        expect(darkToken(`event-${name}`), `dark ${name}`).toMatch(/^#[0-9a-f]{6}$/);
+      }
+    });
+
+    it("카드 배경 위에서 비텍스트 대비 3:1 이상이다(WCAG 1.4.11) — 색을 바꿔도 이 선을 지킨다", () => {
+      const lightBg = token("color-surface-white") as string;
+      const darkBg = darkToken("color-surface-white") as string;
+      for (const name of EVENTS) {
+        expect(contrast(token(`event-${name}`) as string, lightBg), `light ${name}`).toBeGreaterThanOrEqual(3);
+        expect(contrast(darkToken(`event-${name}`) as string, darkBg), `dark ${name}`).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it("검출기 자체 검증: 대비가 낮은 색은 실제로 걸러진다", () => {
+      expect(contrast("#ffffff", "#ffffff")).toBe(1);
+      expect(contrast("#d4d4d8", "#ffffff")).toBeLessThan(3); // 연한 회색은 통과하면 안 된다
+      expect(contrast("#000000", "#ffffff")).toBeCloseTo(21, 0);
+    });
+
+    it("종류마다 다른 색이다(색만으로도 구분 가능하되, 같은 색이 둘 이상이면 안 된다)", () => {
+      // 평가·기록은 의도적으로 중성 회색 계열이라 둘 다 회색이어도 되지만, 서로는 달라야 한다.
+      const light = EVENTS.map((name) => token(`event-${name}`));
+      expect(new Set(light).size).toBe(EVENTS.length);
+    });
+
+    it("이전의 모노크롬 비교용 스위치(data-event-colors)는 더 이상 없다", () => {
+      expect(css).not.toContain("data-event-colors");
+    });
   });
 
   it("다크 모드에서도 같은 토큰 이름을 재정의한다", () => {
