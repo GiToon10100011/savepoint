@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
   addDays,
@@ -84,6 +84,7 @@ type CalendarGridProps = {
  */
 export function CalendarGrid({ year, month, events = {}, selected = null, today, onSelect, onMonthChange }: CalendarGridProps) {
   const weeks = buildMonthGrid(year, month);
+  const gridId = useId();
   const gridRef = useRef<HTMLDivElement>(null);
   const moveFocus = useRef(false);
 
@@ -154,8 +155,11 @@ export function CalendarGrid({ year, month, events = {}, selected = null, today,
                   type="button"
                   data-date={cell.key}
                   tabIndex={cell.key === activeKey ? 0 : -1}
-                  aria-label={`${year}년 ${month}월 ${cell.day}일, ${describeDayEvents(dayEvents)}`}
+                  // 이름 = 보이는 날짜 숫자 + 숨은 설명. 보이는 글자가 이름의 첫 단어로 들어가야 한다(WCAG 2.5.3).
+                  aria-labelledby={`${gridId}-${cell.key}-n ${gridId}-${cell.key}-d`}
                   aria-current={isToday ? "date" : undefined}
+                  // 포커스가 키보드 이동·클릭 외의 경로(프로그램, 음성 제어, 보조 기술)로 들어와도 기준 위치가 따라가게 한다.
+                  onFocus={() => setFocusKey(cell.key)}
                   onClick={() => {
                     setFocusKey(cell.key);
                     onSelect?.(cell.key);
@@ -165,14 +169,26 @@ export function CalendarGrid({ year, month, events = {}, selected = null, today,
                     isSelected ? "border-ink" : "border-transparent hover:border-line-hover",
                   )}
                 >
-                  <span className={cn("type-mono", isToday && "underline decoration-2 underline-offset-4")}>{cell.day}</span>
+                  <span id={`${gridId}-${cell.key}-n`} className={cn("type-mono", isToday && "underline decoration-2 underline-offset-4")}>
+                    {cell.day}
+                  </span>
+                  <span id={`${gridId}-${cell.key}-d`} className="sr-only">
+                    일, {year}년 {month}월, {describeDayEvents(dayEvents)}
+                  </span>
                   {types.length > 0 ? (
-                    <span className="flex flex-wrap items-center gap-1" aria-hidden="true">
+                    // 건수(+N, 총 건수)는 DOM 텍스트가 아니라 CSS 가상 요소로 그린다. 텍스트로 두면 "보이는 글자"가
+                    // 날짜 숫자 + 건수가 되어 접근 가능한 이름에 통째로 들어가지 못한다(WCAG 2.5.3). 건수 정보는
+                    // 이미 이름("게임 평가 2건")에 있으므로 스크린리더에는 중복되지 않는다.
+                    <span
+                      aria-hidden="true"
+                      data-extra={[types.length > MAX_GLYPHS ? `+${types.length - MAX_GLYPHS}` : null, total > 1 ? String(total) : null]
+                        .filter(Boolean)
+                        .join(" ")}
+                      className="flex flex-wrap items-center gap-1 after:type-mono after:text-muted after:content-[attr(data-extra)]"
+                    >
                       {types.slice(0, MAX_GLYPHS).map((type) => (
                         <EventGlyph key={type} type={type} />
                       ))}
-                      {types.length > MAX_GLYPHS ? <span className="text-xs text-muted">+{types.length - MAX_GLYPHS}</span> : null}
-                      {total > 1 ? <span className="type-mono text-muted">{total}</span> : null}
                     </span>
                   ) : null}
                 </button>
