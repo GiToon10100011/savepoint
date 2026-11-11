@@ -34,10 +34,12 @@ type CalendarHeaderProps = {
   onMonthChange: (year: number, month: number) => void;
   /** 있으면 `이번 달` 버튼을 보여 준다. */
   onToday?: () => void;
+  /** 월 제목의 제목 수준. 달력이 다른 섹션 안에 들어가면 계층에 맞게 바꾼다. */
+  headingLevel?: "h2" | "h3";
 };
 
 /** `← 2026년 11월 →` + 이번 달. 월 이동 버튼은 아이콘이라 접근 가능한 이름을 따로 둔다. */
-export function CalendarHeader({ year, month, onMonthChange, onToday }: CalendarHeaderProps) {
+export function CalendarHeader({ year, month, onMonthChange, onToday, headingLevel: Heading = "h2" }: CalendarHeaderProps) {
   const prev = addMonths(year, month, -1);
   const next = addMonths(year, month, 1);
   return (
@@ -46,9 +48,9 @@ export function CalendarHeader({ year, month, onMonthChange, onToday }: Calendar
         <Button variant="ghost" size="sm" aria-label="이전 달" onClick={() => onMonthChange(prev.year, prev.month)}>
           <Chevron direction="left" />
         </Button>
-        <h2 className="type-h3 min-w-32 text-center" aria-live="polite">
+        <Heading className="type-h3 min-w-32 text-center" aria-live="polite">
           {year}년 {month}월
-        </h2>
+        </Heading>
         <Button variant="ghost" size="sm" aria-label="다음 달" onClick={() => onMonthChange(next.year, next.month)}>
           <Chevron direction="right" />
         </Button>
