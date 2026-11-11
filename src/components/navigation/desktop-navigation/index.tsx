@@ -14,7 +14,7 @@ export function DesktopNavigation({ items }: { items: NavItem[] }) {
       aria-label="주 메뉴"
       className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-line bg-paper px-4 py-6 lg:flex"
     >
-      <Link href="/" className="type-h3 mb-8 block px-3">
+      <Link href="/" className="type-h3 mb-8 block px-3 hover:underline hover:decoration-2 hover:underline-offset-4">
         SavePoint
       </Link>
       <ul className="flex flex-col gap-1">
