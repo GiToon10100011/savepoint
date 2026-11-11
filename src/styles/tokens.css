@@ -1,0 +1,128 @@
+/*
+ * StudioBlank Design System — 디자인 토큰.
+ * 값은 요구된 스펙 그대로다. 컴포넌트는 raw 색·크기를 직접 쓰지 않고 이 토큰(과 Tailwind 별칭)만 쓴다.
+ */
+:root {
+  color-scheme: light dark;
+
+  /* color */
+  --color-primary: #0a0a0a;
+  --color-secondary: #fafafa;
+  --color-tertiary: #d4d4d8;
+
+  --surface-base: #fafafa;
+  --surface-inverse: #0a0a0a;
+
+  --color-success: #16a34a;
+  --color-warning: #ca8a04;
+  --color-error: #dc2626;
+  --color-info: #71717a;
+
+  --color-border: #e5e5e5;
+  --color-border-subtle: #f4f4f5;
+  --color-border-hover: #a1a1aa;
+
+  --color-text-primary: #0a0a0a;
+  --color-text-secondary: #71717a;
+
+  --color-surface-white: #ffffff;
+  --color-surface-disabled: #f4f4f5;
+
+  /* typography */
+  --font-sans: var(--font-inter), var(--font-noto-sans-kr), "Inter", sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", monospace;
+
+  --text-hero: 64px;
+  --text-h1: 40px;
+  --text-h2: 28px;
+  --text-h3: 20px;
+
+  --text-body: 16px;
+  --text-body-sm: 14px;
+  --text-caption: 12px;
+  --text-mono: 13px;
+
+  /* spacing (기본 단위 16px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 32px;
+  --space-5: 48px;
+  --space-6: 64px;
+  --space-8: 96px;
+  --space-10: 128px;
+
+  /* breakpoints (미디어 쿼리에는 CSS 변수를 쓸 수 없어 문서·참조용이다) */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+
+  /* shape / interaction */
+  --radius: 0;
+  --touch-min: 44px;
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+
+  /* 달력 이벤트: 기본은 모노크롬. 구분은 색이 아니라 글리프·레이블·패턴이 담당한다. */
+  --event-play-start: var(--color-text-primary);
+  --event-ending: var(--color-text-primary);
+  --event-complete: var(--color-text-primary);
+  --event-review: var(--color-text-primary);
+  --event-rating: var(--color-text-primary);
+  --event-session: var(--color-text-secondary);
+}
+
+/* 다크 모드: 모노크롬 기조를 유지하며 기본/반전 색을 맞바꾼다. 게임 커버 이미지는 건드리지 않는다. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: #fafafa;
+    --color-secondary: #0a0a0a;
+    --color-tertiary: #3f3f46;
+
+    --surface-base: #0a0a0a;
+    --surface-inverse: #fafafa;
+
+    /* 어두운 배경에서 대비가 부족한 의미 색은 한 단계 밝게 */
+    --color-success: #4ade80;
+    --color-warning: #facc15;
+    --color-error: #f87171;
+    --color-info: #a1a1aa;
+
+    --color-border: #27272a;
+    --color-border-subtle: #18181b;
+    --color-border-hover: #71717a;
+
+    --color-text-primary: #fafafa;
+    --color-text-secondary: #a1a1aa;
+
+    --color-surface-white: #111113;
+    --color-surface-disabled: #18181b;
+  }
+}
+
+/*
+ * 달력 이벤트 색 안(비교용, 기본 꺼짐). 모노크롬 기조와 어울리도록 채도를 낮춘 색이다.
+ * `data-event-colors="on"`을 붙인 영역에서만 켜지며, 색만으로 구분하지 않는다(글리프·레이블이 항상 함께 표시된다).
+ */
+[data-event-colors="on"] {
+  --event-play-start: #2f6b45;
+  --event-ending: #2f5a8a;
+  --event-complete: #8a6a14;
+  --event-review: #6b4a8a;
+  --event-rating: #52525b;
+  --event-session: #71717a;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-event-colors="on"] {
+    --event-play-start: #6fcf97;
+    --event-ending: #7fb0e6;
+    --event-complete: #e6c35c;
+    --event-review: #c4a1e6;
+    --event-rating: #a1a1aa;
+    --event-session: #a1a1aa;
+  }
+}

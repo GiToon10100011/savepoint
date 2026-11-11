@@ -1,26 +1,83 @@
 @import "tailwindcss";
+@import "../styles/tokens.css";
+@import "../styles/typography.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Tailwind의 기본 팔레트·모서리·그림자를 모두 지운다. 이 프로젝트에서는 tokens.css의 값만 쓸 수 있고,
+ * `bg-blue-500`, `rounded-lg`, `shadow-md` 같은 클래스는 아예 생성되지 않는다.
+ */
+@theme {
+  --color-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
 }
 
+/* 토큰을 Tailwind 유틸리티 이름에 연결한다 (bg-paper, text-fg, border-line ...). */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--surface-base);
+  --color-ink: var(--color-primary);
+  --color-card: var(--color-surface-white);
+  --color-fg: var(--color-text-primary);
+  --color-muted: var(--color-text-secondary);
+  --color-line: var(--color-border);
+  --color-line-subtle: var(--color-border-subtle);
+  --color-line-hover: var(--color-border-hover);
+  --color-line-input: var(--color-tertiary);
+  --color-disabled: var(--color-surface-disabled);
+  --color-inverse: var(--surface-inverse);
+  --color-on-inverse: var(--color-secondary);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-error: var(--color-error);
+  --color-info: var(--color-info);
+  --color-transparent: transparent;
+  --color-current: currentColor;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* 직각·무그림자는 선택이 아니라 규칙이다. */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+@layer base {
+  html {
+    background: var(--surface-base);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    min-height: 100dvh;
+    font-size: var(--text-body);
+    font-weight: 300;
+    line-height: 1.65;
+    /* 한글을 음절 중간에서 끊지 않고 띄어쓰기에서만 줄을 바꾼다. 공백 없는 긴 문자열은 넘치지 않게 끊는다. */
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+
+  :focus-visible {
+    outline: var(--focus-width) solid var(--color-primary);
+    outline-offset: var(--focus-offset);
+  }
+
+  img,
+  svg {
+    display: block;
+  }
+
+  /* 움직임은 최소화한다. 사용자가 줄이기를 원하면 전환을 사실상 끈다. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
 }
