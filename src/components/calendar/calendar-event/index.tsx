@@ -23,7 +23,7 @@ const GLYPHS: Record<CalendarEventType, ReactNode> = {
   play_session: <path d="M6 12h12" fill="none" stroke="currentColor" strokeWidth="3" />,
 };
 
-/** 글리프 하나. 색은 `--event-*` 토큰이 정한다(기본 모노크롬). 접근성 이름은 쓰는 쪽의 레이블이 맡는다. */
+/** 글리프 하나. 색은 `--event-*` 토큰이 정하는 보조 수단이다(구분은 모양이 한다). 접근성 이름은 쓰는 쪽의 레이블이 맡는다. */
 export function EventGlyph({ type, className }: { type: CalendarEventType; className?: string }) {
   return (
     <svg
