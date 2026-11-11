@@ -3,6 +3,7 @@
 import type { KeyboardEvent, MouseEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { hasModifier } from "@/lib/keyboard";
 import {
   formatStars,
   nextStars,
@@ -78,7 +79,8 @@ export function GameRating({ value, onChange, readOnly = false, label = "별점"
   }
 
   function handleKey(event: KeyboardEvent<HTMLDivElement>) {
-    if (!interactive) return;
+    // 브라우저·OS 단축키(Alt+←, Ctrl/Cmd+Backspace 등)와 겹치는 조합은 처리하지 않고 막지도 않는다.
+    if (!interactive || hasModifier(event)) return;
     const next = nextStars(value, event.key);
     if (next === undefined) return;
     event.preventDefault();

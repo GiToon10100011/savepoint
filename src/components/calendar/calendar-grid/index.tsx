@@ -15,6 +15,7 @@ import {
 } from "@/lib/calendar";
 import { describeDayEvents, presentEventTypes, totalEvents, type DayEvents } from "@/lib/calendar-events";
 import { cn } from "@/lib/cn";
+import { hasModifier } from "@/lib/keyboard";
 import { EventGlyph } from "../calendar-event";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -117,6 +118,8 @@ export function CalendarGrid({ year, month, events = {}, selected = null, today,
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    // Alt+←(뒤로 가기), Ctrl/Cmd+방향키 같은 브라우저·OS 단축키는 건드리지 않는다.
+    if (hasModifier(event)) return;
     const step: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
     let target: DateKey | null = null;
     if (event.key in step) target = addDays(activeKey, step[event.key]);
