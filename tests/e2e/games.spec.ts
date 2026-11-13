@@ -16,7 +16,10 @@ test.describe("게임 검색과 미리보기", () => {
   test("IGDB 후보를 보여 주고 DB에 쓰지 않는 미리보기를 연다(실제 IGDB)", async ({ page }) => {
     await page.goto("/search?q=zelda");
     await expect(page.getByRole("heading", { level: 2, name: "IGDB에서 찾은 게임" })).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("list", { name: "IGDB 후보 목록" }).getByRole("link").first().click();
+    // 이미 가져온 게임(dev 시드 등)은 후보에서도 내부 슬러그로 연결되므로, 아직 없는 후보(미리보기 주소)만 고른다.
+    const previews = page.getByRole("list", { name: "IGDB 후보 목록" }).locator('a[href^="/games/igdb-"]');
+    await expect(previews.first()).toBeVisible();
+    await previews.first().click();
     await expect(page).toHaveURL(/\/games\/igdb-\d+$/);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("note")).toContainText("아직 서비스에 등록되지 않은 게임");
