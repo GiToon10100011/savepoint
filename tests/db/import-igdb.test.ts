@@ -106,6 +106,34 @@ describe("importIgdbGame", () => {
     expect(await linkCount("game_genres", results[0].id)).toBe(2);
   });
 
+  it("이미 있는 플랫폼은 다시 가져와도 식별 값을 소모하지 않는다(시퀀스 소진 방지)", async () => {
+    // `ON CONFLICT DO NOTHING`도 충돌하기 전에 nextval을 평가해 값을 태운다. 게임마다 같은 플랫폼으로 INSERT를
+    // 시도하면 행은 그대로인데 시퀀스만 계속 가서 smallint 시절에는 32,767에서 가져오기가 막혔다.
+    const lastValue = async () =>
+      Number((await admin.query("select last_value from platforms_id_seq")).rows[0].last_value);
+    const shared = platform("Shared Console");
+    const first = draft({ platforms: [shared] });
+    await importIgdbGame(catalogPool, first); // 새 플랫폼이라 한 번은 소모한다
+    const afterFirst = await lastValue();
+
+    for (let i = 0; i < 6; i += 1) {
+      await importIgdbGame(catalogPool, draft({ platforms: [shared, { igdbId: 6, slug: "win", name: "PC (Microsoft Windows)" }] })); // 다른 게임, 같은 플랫폼
+    }
+    await importIgdbGame(catalogPool, first); // 같은 게임을 다시
+    expect(await lastValue()).toBe(afterFirst);
+    expect(await count("select count(*)::int as n from platforms where igdb_id = $1", [shared.igdbId])).toBe(1);
+  });
+
+  it("플랫폼 ID는 integer라 smallint 한도(32,767)를 넘는 값도 받는다", async () => {
+    const { rows } = await admin.query(
+      `select data_type from information_schema.columns
+       where (table_name = 'platforms' and column_name = 'id') or (table_name = 'game_platforms' and column_name = 'platform_id')`,
+    );
+    expect(rows.map((r) => r.data_type)).toEqual(["integer", "integer"]);
+    const seq = await admin.query("select s.seqmax::bigint as max from pg_sequence s join pg_class c on c.oid = s.seqrelid where c.relname = 'platforms_id_seq'");
+    expect(Number(seq.rows[0].max)).toBe(2_147_483_647);
+  });
+
   it("다시 가져오면 메타데이터와 연결을 최신으로 바꾸되 슬러그(영구 주소)는 유지한다", async () => {
     const first = draft({ genreSlugs: ["rpg", "adventure"], tagSlugs: ["fantasy"], platforms: [platform()] });
     const created = await importIgdbGame(catalogPool, first);
