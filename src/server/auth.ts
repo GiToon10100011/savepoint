@@ -1,5 +1,6 @@
 import "server-only";
 import { createNeonAuth } from "@neon/auth/next/server";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
 
 function requireEnv(name: "NEON_AUTH_BASE_URL" | "NEON_AUTH_COOKIE_SECRET"): string {
   const value = process.env[name];
@@ -14,4 +15,7 @@ function requireEnv(name: "NEON_AUTH_BASE_URL" | "NEON_AUTH_COOKIE_SECRET"): str
 export const auth = createNeonAuth({
   baseUrl: requireEnv("NEON_AUTH_BASE_URL"),
   cookies: { secret: requireEnv("NEON_AUTH_COOKIE_SECRET") },
+  // 프리렌더는 끝날 때 대기 중이던 cookies() 약속을 거절한다(정상 동작이고 React가 무시한다). SDK가 이를
+  // 오류로 기록해 빌드 로그가 어지러워지므로 빌드 중에만 끈다. 실행 중의 인증 오류는 그대로 기록한다.
+  logLevel: process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD ? "silent" : "warn",
 });
