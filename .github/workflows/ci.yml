@@ -30,4 +30,9 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      # 빌드는 인증 서버에 접속하지 않지만, 라우트 핸들러가 불러올 때 `createNeonAuth`가 값을 요구한다.
+      # 아래는 비밀이 아닌 자리표시 값이다(실제 값은 배포 환경에서만 쓴다).
       - run: npm run build
+        env:
+          NEON_AUTH_BASE_URL: https://auth.invalid/neondb/auth
+          NEON_AUTH_COOKIE_SECRET: ci-placeholder-not-a-secret-0123456789
