@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { acquireAuthLock, cleanupTestUsers, newTestUser, waitForForm } from "./helpers/auth";
 
@@ -24,6 +25,38 @@ test.describe("게임 검색과 미리보기", () => {
   test("없는 게임 주소는 찾을 수 없다 화면을 보여 준다", async ({ page }) => {
     await page.goto(`/games/does-not-exist-${randomUUID().slice(0, 6)}`);
     await expect(page.getByText("This page could not be found")).toBeVisible();
+  });
+});
+
+test.describe("접근성과 디자인 규칙 (검색·게임 화면)", () => {
+  // 비로그인으로 열리는 화면만 본다(/games/new는 로그인이 필요하다). 게임 화면은 dev에 시드된 게임을 쓴다.
+  const pages = ["/search", "/search?q=elden", "/games/elden-ring"];
+  for (const url of pages) {
+    for (const scheme of ["light", "dark"] as const) {
+      test(`${url} (${scheme}): axe 위반이 없다`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.goto(url);
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 30_000 });
+        const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+        expect(results.violations.map((v) => `${v.id}: ${v.nodes.length}곳 — ${v.nodes[0]?.target.join(" ")}`)).toEqual([]);
+      });
+    }
+  }
+
+  test("검색·게임 화면에도 라운드와 그림자가 없다", async ({ page }) => {
+    for (const url of pages) {
+      await page.goto(url);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 30_000 });
+      const offenders = await page.evaluate(() =>
+        [...document.querySelectorAll("body *")]
+          .filter((el) => {
+            const style = getComputedStyle(el);
+            return style.borderTopLeftRadius !== "0px" || style.boxShadow !== "none";
+          })
+          .map((el) => el.tagName.toLowerCase()),
+      );
+      expect(offenders, url).toEqual([]);
+    }
   });
 });
 
