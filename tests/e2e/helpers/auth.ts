@@ -1,6 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { mkdir, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { parse } from "dotenv";
 import { Client } from "pg";
 import { withVerifyFull } from "../../../src/server/db/connection";
@@ -20,6 +23,34 @@ export function newTestUser(): TestUser {
   const email = `e2e-${id}@${E2E_EMAIL_DOMAIN}`;
   created.push(email);
   return { email, password: E2E_PASSWORD, nickname: `E2E ${id}` };
+}
+
+const LOCK_DIR = join(tmpdir(), "savepoint-e2e-neon-auth.lock");
+const LOCK_STALE_MS = 5 * 60_000;
+
+/**
+ * Neon Auth는 같은 IP에서 로그인·가입 요청이 몰리면 429(요청이 너무 많아요)로 거절한다. 모바일·데스크톱 워커가
+ * 동시에 가입·로그인하면 실제로 걸려서, 계정 흐름은 한 번에 한 워커만 돌도록 파일 잠금으로 줄 세운다.
+ * `mkdir`은 원자적이라 하나만 성공한다. 비정상 종료로 남은 잠금은 5분이 지나면 빼앗는다.
+ * 반환값을 호출하면 잠금을 푼다.
+ */
+export async function acquireAuthLock(timeoutMs = 120_000): Promise<() => Promise<void>> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      await mkdir(LOCK_DIR);
+      return () => rm(LOCK_DIR, { recursive: true, force: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
+    const age = Date.now() - (await stat(LOCK_DIR).then((info) => info.mtimeMs, () => Date.now()));
+    if (age > LOCK_STALE_MS) {
+      await rm(LOCK_DIR, { recursive: true, force: true });
+      continue;
+    }
+    if (Date.now() > deadline) throw new Error("인증 E2E 잠금을 얻지 못했다(다른 실행이 오래 붙잡고 있다)");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
 }
 
 /**

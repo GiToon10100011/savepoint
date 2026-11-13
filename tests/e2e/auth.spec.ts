@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { cleanupTestUsers, newTestUser, signIn, signUp, waitForForm } from "./helpers/auth";
+import { acquireAuthLock, cleanupTestUsers, newTestUser, signIn, signUp, waitForForm } from "./helpers/auth";
 
 // 실제 Neon Auth(dev 브랜치)와 DB에 가입한다. 이 파일이 만든 계정은 끝난 뒤 지운다.
 test.afterAll(cleanupTestUsers);
@@ -12,13 +12,14 @@ const alertWith = (page: Page, text: string) =>
 
 test.describe("보호 경로", () => {
   test("비로그인이면 로그인 화면으로 보내고, 공개 경로는 그대로 연다", async ({ page }) => {
+    // 로그인 화면으로 보내면서 원래 경로를 redirectTo에 싣는다(로그인 후 돌아오기 위해).
     await page.goto("/account");
-    await expect(page).toHaveURL(/\/auth\/sign-in$/);
+    await expect(page).toHaveURL(/\/auth\/sign-in\?redirectTo=%2Faccount$/);
     await expect(page.getByRole("heading", { level: 1, name: "로그인" })).toBeVisible();
 
     // 라이브러리·달력은 개인 기록이라 로그인이 필요하다.
     await page.goto("/library");
-    await expect(page).toHaveURL(/\/auth\/sign-in$/);
+    await expect(page).toHaveURL(/\/auth\/sign-in\?redirectTo=%2Flibrary$/);
 
     await page.goto("/");
     await expect(page).toHaveURL(/\/$/);
@@ -46,8 +47,19 @@ test.describe("가입 입력 검증", () => {
 });
 
 test.describe("계정 생애 주기", () => {
-  test("가입 → 프로필 생성 → 새로고침 유지 → 로그아웃 → 중복 가입·오류 안내 → 로그인", async ({ page }) => {
-    test.setTimeout(180_000); // 개발 서버가 처음 컴파일하는 화면이 많다
+  // 실제 Neon Auth는 같은 IP의 로그인·가입이 몰리면 429로 거절한다. 모바일·데스크톱 워커가 번갈아 돌게 줄 세운다.
+  let release: (() => Promise<void>) | undefined;
+  test.beforeEach(async () => {
+    // 다른 워커가 끝나기를 기다리는 시간과 개발 서버의 첫 컴파일 시간을 포함한다.
+    test.setTimeout(240_000);
+    release = await acquireAuthLock();
+  });
+  test.afterEach(async () => {
+    await release?.();
+    release = undefined;
+  });
+
+  test("가입 → 프로필 생성 → 새로고침 유지 → 로그아웃 → 중복 가입·오류 안내 → 로그인", async ({ page, baseURL }) => {
     const user = newTestUser();
     let handle = "";
 
@@ -76,7 +88,7 @@ test.describe("계정 생애 주기", () => {
       await expect(page).toHaveURL(/\/$/);
       await expect(nav(page).getByRole("link", { name: "로그인" })).toBeVisible();
       await page.goto("/account");
-      await expect(page).toHaveURL(/\/auth\/sign-in$/);
+      await expect(page).toHaveURL(/\/auth\/sign-in\?redirectTo=%2Faccount$/);
     });
 
     await test.step("같은 이메일로 다시 가입하면 안내한다", async () => {
@@ -92,24 +104,26 @@ test.describe("계정 생애 주기", () => {
       await expect(page.getByLabel("이메일")).toHaveValue(user.email);
     });
 
-    await test.step("올바른 비밀번호로 로그인하면 같은 프로필을 쓴다(새로 만들지 않는다)", async () => {
-      await signIn(page, user.email, user.password);
-      await expect(page).toHaveURL(/\/$/);
+    await test.step("보호 경로에서 로그인하면 원래 가려던 경로로 돌아오고, 같은 프로필을 쓴다(새로 만들지 않는다)", async () => {
+      // 로그아웃한 상태에서 보호 경로를 열면 proxy가 redirectTo를 실어 로그인 화면으로 보낸다.
       await page.goto("/account");
+      await expect(page).toHaveURL(/\/auth\/sign-in\?redirectTo=%2Faccount$/);
+      await waitForForm(page);
+      await page.getByLabel("이메일").fill(user.email);
+      await page.getByLabel("비밀번호").fill(user.password);
+      await page.getByRole("button", { name: "로그인" }).click();
+      await expect(page).toHaveURL(/\/account$/);
+      await expect(page.getByTestId("account-nickname")).toHaveText(user.nickname);
       await expect(page.getByTestId("account-handle")).toHaveText(handle);
+      await page.getByRole("button", { name: "로그아웃" }).click();
+      await expect(page).toHaveURL(/\/$/);
     });
 
-    await test.step("로그인 뒤 redirectTo 경로로 가되 외부 주소는 무시한다", async () => {
-      await page.getByRole("button", { name: "로그아웃" }).click();
-      await expect(page).toHaveURL(/\/$/);
-      await signIn(page, user.email, user.password, `?redirectTo=${encodeURIComponent("/account")}`);
-      await expect(page).toHaveURL(/\/account$/);
-
-      await page.getByRole("button", { name: "로그아웃" }).click();
-      await expect(page).toHaveURL(/\/$/);
+    await test.step("redirectTo가 외부 주소면 무시하고 홈으로 간다", async () => {
       await signIn(page, user.email, user.password, `?redirectTo=${encodeURIComponent("//evil.example")}`);
       await expect(page).toHaveURL(/\/$/);
-      expect(new URL(page.url()).hostname).toBe("localhost");
+      // 설정된 서버의 출처(E2E_BASE_URL이 127.0.0.1일 수도 있다)에 머물렀는지 본다. 외부로 나갔다면 다르다.
+      expect(new URL(page.url()).origin).toBe(new URL(baseURL as string).origin);
     });
   });
 });
