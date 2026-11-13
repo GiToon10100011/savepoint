@@ -35,9 +35,12 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
 /**
  * 로그인이 필요한 화면·액션의 첫 줄에서 부른다. proxy의 리디렉션은 낙관적 검사일 뿐이라
  * 데이터를 읽거나 바꾸기 전에 여기서 다시 확인한다.
+ *
+ * `returnTo`에 이 화면의 경로를 넘기면 로그인 뒤 그 화면으로 돌아온다. proxy가 오래된 세션 쿠키를 통과시켜
+ * 여기서 비로그인으로 판정되는 경우에도 같은 요구(원래 경로로 복귀)를 지키기 위해서다.
  */
-export async function requireViewer(): Promise<Viewer> {
+export async function requireViewer(returnTo?: string): Promise<Viewer> {
   const viewer = await getViewer();
-  if (!viewer) redirect("/auth/sign-in");
+  if (!viewer) redirect(returnTo ? `/auth/sign-in?redirectTo=${encodeURIComponent(returnTo)}` : "/auth/sign-in");
   return viewer;
 }
