@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  images: {
+    // IGDB 커버 이미지만 허용한다(경로까지 좁힌다).
+    remotePatterns: [{ protocol: "https", hostname: "images.igdb.com", pathname: "/igdb/image/upload/**" }],
+  },
   turbopack: {
     // 홈 디렉터리의 무관한 package-lock.json이 워크스페이스 루트로 잘못 감지되지 않도록 고정한다.
     root: process.cwd(),
