@@ -146,8 +146,10 @@ export async function searchCatalog(
 ): Promise<SearchResult> {
   const page = await searchGames(pool, text, options);
   const query = text.trim();
-  const needsCandidates = source !== null && query !== "" && !options.cursor && page.items.length < PAGE_SIZE;
+  const needsCandidates = query !== "" && !options.cursor && page.items.length < PAGE_SIZE;
   if (!needsCandidates) return { ...page, candidates: [], igdbUnavailable: false };
+  // 키가 설정되지 않은 환경도 IGDB 장애와 같게 다룬다. 외부 게임이 왜 안 나오는지 사용자가 알 수 있다.
+  if (source === null) return { ...page, candidates: [], igdbUnavailable: true };
 
   let drafts: GameDraft[];
   try {
