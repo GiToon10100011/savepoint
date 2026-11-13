@@ -14,7 +14,10 @@ const catalogPool = new Pool({ connectionString: process.env.DATABASE_URL_CATALO
 const admin = new Client({ connectionString: withVerifyFull(process.env.DATABASE_URL_ADMIN as string) });
 
 const RUN = randomUUID().slice(0, 8);
-const LIKE = "test-profiles-%";
+// 같은 test 브랜치를 쓰는 다른 실행(예: 동시에 도는 `test:db`)의 행을 지우지 않도록 정리 범위를 나눈다.
+// 끝날 때는 이 실행(RUN)이 만든 행만, 시작할 때는 1시간 넘게 남은 이전 실행의 찌꺼기만 지운다.
+const OWN_ROWS = `test-profiles-${RUN}-%`;
+const ANY_RUN = "test-profiles-%";
 const authId = (name: string) => `test-profiles-${RUN}-${name}`;
 let seq = 0;
 const handle = () => `t${RUN}_${(seq++).toString(36)}`; // 소문자·숫자·_ 만, 20자 이하
@@ -45,11 +48,11 @@ const adminRow = async (id: string) =>
 
 beforeAll(async () => {
   await admin.connect();
-  await admin.query("delete from profiles where auth_user_id like $1", [LIKE]);
+  await admin.query("delete from profiles where auth_user_id like $1 and created_at < now() - interval '1 hour'", [ANY_RUN]);
 });
 
 afterAll(async () => {
-  await admin.query("delete from profiles where auth_user_id like $1", [LIKE]);
+  await admin.query("delete from profiles where auth_user_id like $1", [OWN_ROWS]);
   await admin.end();
   await pool.end();
   await catalogPool.end();
