@@ -135,7 +135,86 @@ describe("속도 제한", () => {
     const clock = 1_000;
     const { client, sleeps } = setup({ minIntervalMs: undefined, now: () => clock });
     await Promise.all([client.query("games", "x"), client.query("games", "x"), client.query("games", "x")]);
-    expect(sleeps).toEqual([250, 500]);
+    // 각 요청은 앞 요청이 시작한 시각을 기준으로 250ms를 기다린다(가짜 시계는 멈춰 있어 둘 다 250).
+    expect(sleeps).toEqual([250, 250]);
+  });
+
+  it("타이머가 늦게 깨도 앞 요청이 실제로 시작한 시각부터 간격을 둔다(따라붙어 한꺼번에 시작하지 않는다)", async () => {
+    // 시작 시각을 미리 예약만 해 두면, 이벤트 루프가 밀려 늦게 깬 뒤 기다리던 요청들이 연달아 시작해 간격이 사라진다.
+    let clock = 1_000;
+    const timers: { at: number; wake: () => void }[] = [];
+    const starts: number[] = [];
+    const client = createIgdbClient({
+      clientId: "cid",
+      clientSecret: SECRET,
+      minIntervalMs: 250,
+      now: () => clock,
+      sleep: (ms) => new Promise<void>((resolve) => timers.push({ at: clock + ms, wake: resolve })),
+      fetch: (async (input: RequestInfo | URL) => {
+        if (String(input).includes("id.twitch.tv")) return Response.json({ access_token: "tok", expires_in: 3600 });
+        starts.push(clock);
+        return Response.json([]);
+      }) as unknown as typeof fetch,
+    });
+    const advanceTo = (to: number) => {
+      clock = to;
+      for (const timer of timers.filter((t) => t.at <= to)) {
+        timers.splice(timers.indexOf(timer), 1);
+        timer.wake();
+      }
+    };
+
+    const all = Promise.all([client.query("games", "x"), client.query("games", "x"), client.query("games", "x")]);
+    await vi.waitFor(() => expect(starts).toEqual([1_000]));
+    advanceTo(2_000); // 1,250에 깼어야 할 타이머가 750ms 늦게 깬다
+    await vi.waitFor(() => expect(starts.length).toBeGreaterThanOrEqual(2));
+    advanceTo(2_250);
+    await all;
+
+    expect(starts).toEqual([1_000, 2_000, 2_250]);
+  });
+
+  it("처음 토큰을 기다리는 동안 슬롯을 쓰지 않는다(토큰이 오는 순간 동시 요청이 한꺼번에 나가지 않는다)", async () => {
+    // 슬롯을 잡은 뒤에 Twitch 응답을 기다리면 그 시간만큼 간격이 사라져, 첫 요청들이 토큰이 오자마자 연달아 나간다.
+    let clock = 1_000;
+    const timers: { at: number; wake: () => void }[] = [];
+    const starts: number[] = [];
+    let releaseToken!: () => void;
+    const tokenGate = new Promise<void>((resolve) => {
+      releaseToken = resolve;
+    });
+    const client = createIgdbClient({
+      clientId: "cid",
+      clientSecret: SECRET,
+      minIntervalMs: 250,
+      now: () => clock,
+      sleep: (ms) => new Promise<void>((resolve) => timers.push({ at: clock + ms, wake: resolve })),
+      fetch: (async (input: RequestInfo | URL) => {
+        if (String(input).includes("id.twitch.tv")) {
+          await tokenGate;
+          return Response.json({ access_token: "tok", expires_in: 3600 });
+        }
+        starts.push(clock);
+        return Response.json([]);
+      }) as unknown as typeof fetch,
+    });
+    const advanceTo = (to: number) => {
+      clock = to;
+      for (const timer of timers.filter((t) => t.at <= to)) {
+        timers.splice(timers.indexOf(timer), 1);
+        timer.wake();
+      }
+    };
+
+    const all = Promise.all([client.query("games", "x"), client.query("games", "x")]);
+    await new Promise<void>((resolve) => setImmediate(resolve)); // 요청들이 각자 대기(슬롯·토큰)에 들어가게 한다
+    advanceTo(1_300); // 토큰 응답이 300ms 걸리는 동안 시계가 흐른다
+    releaseToken();
+    await vi.waitFor(() => expect(starts.length).toBeGreaterThanOrEqual(1));
+    advanceTo(1_550);
+    await all;
+
+    expect(starts).toEqual([1_300, 1_550]);
   });
 });
 
