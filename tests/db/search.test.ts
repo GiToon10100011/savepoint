@@ -220,12 +220,33 @@ describe("searchCatalog (내부 결과 + IGDB 후보)", () => {
     expect(result).toMatchObject({ candidates: [], igdbUnavailable: true });
   });
 
-  it("검색어가 없거나 다음 페이지이거나 키가 없으면 IGDB를 부르지 않는다", async () => {
+  it("검색어가 없거나 다음 페이지이면 IGDB를 부르지 않고, 안내도 띄우지 않는다", async () => {
     const source = fakeSource(async () => []);
-    await searchCatalog(pool, source, "");
-    await searchCatalog(pool, source, "anything", { cursor: encodeCursor({ score: 1, ratingCount: 0, id: randomUUID() }) });
+    const empty = await searchCatalog(pool, source, "");
+    const next = await searchCatalog(pool, source, "anything", { cursor: encodeCursor({ score: 1, ratingCount: 0, id: randomUUID() }) });
     expect(source.search).not.toHaveBeenCalled();
-    await expect(searchCatalog(pool, null, `NoKey${RUN}`)).resolves.toMatchObject({ candidates: [], igdbUnavailable: false });
+    expect(empty.igdbUnavailable).toBe(false);
+    expect(next.igdbUnavailable).toBe(false);
+  });
+
+  it("IGDB 키가 없으면(source가 null) 내부 결과는 그대로 주고 외부 검색을 못 한다고 알린다", async () => {
+    // 키가 없는 환경도 IGDB 장애와 같다: 사용자는 "왜 외부 게임이 안 나오지?"를 알 수 있어야 한다(README의 장애 시 동작).
+    const token = `NoKey${tok()}`;
+    await addGame({ title: `${token} Local` });
+    const result = await searchCatalog(pool, null, token);
+    expect(result.items.map((i) => i.title)).toEqual([`${token} Local`]);
+    expect(result).toMatchObject({ candidates: [], igdbUnavailable: true });
+  });
+
+  it("키가 없어도 검색어가 없거나 다음 페이지이거나 첫 페이지가 가득 차면 안내하지 않는다(IGDB를 부를 일이 없다)", async () => {
+    expect((await searchCatalog(pool, null, "")).igdbUnavailable).toBe(false);
+    const cursor = encodeCursor({ score: 1, ratingCount: 0, id: randomUUID() });
+    expect((await searchCatalog(pool, null, "anything", { cursor })).igdbUnavailable).toBe(false);
+    const token = `NoKeyFull${tok()}`;
+    for (let i = 0; i < PAGE_SIZE; i += 1) await addGame({ title: `${token} ${i}` });
+    const full = await searchCatalog(pool, null, token);
+    expect(full.items).toHaveLength(PAGE_SIZE);
+    expect(full.igdbUnavailable).toBe(false);
   });
 
   it("첫 페이지가 가득 차면 IGDB를 부르지 않는다", async () => {
