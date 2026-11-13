@@ -47,7 +47,13 @@ export async function signUpAction(_prev: AuthFormState, formData: FormData): Pr
   redirect(redirectTarget(formData));
 }
 
-export async function signOutAction(): Promise<void> {
-  await auth.signOut();
+/** 로그아웃 폼의 상태. 실패하면 오류 문구를 돌려주고 이동하지 않는다. */
+export type SignOutState = { error: string } | null;
+
+export async function signOutAction(): Promise<SignOutState> {
+  const { error } = await auth.signOut();
+  // 인증 서버에 닿지 못하면 SDK는 예외 없이 오류를 돌려주고 세션 쿠키를 지우지 않는다. 그때 홈으로 보내면
+  // 세션이 살아 있는데도 로그아웃한 것처럼 보인다(공용 기기에서 위험하다). 이동하지 않고 알린다.
+  if (error) return { error: "로그아웃하지 못했어요. 잠시 후 다시 시도해 주세요." };
   redirect("/");
 }

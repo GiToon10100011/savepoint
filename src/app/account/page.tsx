@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Button } from "@/components/ui/button";
-import { signOutAction } from "@/features/auth/actions";
+import { SignOutForm } from "@/features/auth/components/sign-out-form";
 import { requireViewer } from "@/server/viewer";
 
 export const metadata: Metadata = { title: "내 계정" };
@@ -19,7 +18,7 @@ export default function AccountPage() {
 
 async function AccountDetails() {
   // proxy가 한 번 걸러 주지만 낙관적 검사일 뿐이라 데이터를 읽기 전에 세션을 다시 확인한다.
-  const { user, profile } = await requireViewer();
+  const { user, profile } = await requireViewer("/account");
   return (
     <>
       <dl className="mt-8 grid gap-4">
@@ -40,11 +39,7 @@ async function AccountDetails() {
           <dd className="type-body mt-1">{user.email}</dd>
         </div>
       </dl>
-      <form action={signOutAction} className="mt-10">
-        <Button type="submit" variant="secondary">
-          로그아웃
-        </Button>
-      </form>
+      <SignOutForm />
     </>
   );
 }
