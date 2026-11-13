@@ -122,6 +122,18 @@ describe("createManualGame", () => {
     await expect(createManualGame(pool, alice, input())).resolves.toMatchObject({ slug: expect.any(String) });
   });
 
+  it("같은 사용자가 동시에 보내도 한도를 넘어 등록하지 못한다(확인-후-삽입 경쟁)", async () => {
+    // 잠금 없이 세면 동시에 시작한 요청들이 서로의 INSERT를 보지 못해 모두 한도 아래로 보고 통과한다.
+    const burst = await makeUser("burst");
+    const attempts = MANUAL_GAMES_PER_HOUR + 6;
+    const results = await Promise.allSettled(Array.from({ length: attempts }, () => createManualGame(pool, burst, input())));
+    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(MANUAL_GAMES_PER_HOUR);
+    expect(rejected).toHaveLength(6);
+    for (const r of rejected) expect(r.reason).toBeInstanceOf(RateLimitError);
+    expect(await count("select count(*)::int as n from games where created_by = $1", [burst.profileId])).toBe(MANUAL_GAMES_PER_HOUR);
+  });
+
   it("도중에 실패하면 전부 되돌린다(게임만 남지 않는다)", async () => {
     // 회사 이름이 길이 제약(200자)을 어겨 게임 INSERT 뒤 단계에서 실패한다.
     const title = `Atomic ${RUN}`;

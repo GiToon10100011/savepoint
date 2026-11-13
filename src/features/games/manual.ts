@@ -61,6 +61,10 @@ export async function createManualGame(
   input: ManualGameInput,
 ): Promise<CreatedGame> {
   return runAsUser(pool, user, async (_tx, client) => {
+    // 같은 사용자의 동시 등록이 한도 확인을 함께 통과하지 못하게 사용자별로 줄 세운다. READ COMMITTED에서는 서로의
+    // 아직 커밋되지 않은 INSERT가 보이지 않아, 잠금 없이 세면 여러 요청이 모두 한도 아래로 보고 통과한다(확인-후-삽입 경쟁).
+    // 트랜잭션 단위 잠금이라 커밋·롤백 때 풀리고, 트랜잭션 모드 풀링에서도 안전하다.
+    await client.query("select pg_advisory_xact_lock(hashtext('manual_game'), hashtext($1))", [user.profileId]);
     const recent = await client.query<{ n: number }>(
       "select count(*)::int as n from games where created_by = $1 and created_at > now() - interval '1 hour'",
       [user.profileId],
