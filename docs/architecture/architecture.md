@@ -46,7 +46,7 @@ tests/                      # unit/, db/, e2e/
 
 ## 3. 인증과 인가
 
-1. `src/app/api/auth/[...path]/route.ts`가 Neon Auth 핸들러를 노출하고, `src/proxy.ts`가 보호 경로를 막는다. 공개 경로는 `/`(홈만), `/search`, `/games`, `/u`, `/dev`(하위 경로 포함)이고 나머지는 로그인이 필요하다. proxy는 **낙관적 검사**일 뿐이다. SDK가 원래 경로를 로그인 화면에 붙여 주지 않으므로 로그인 직후에는 `/`로 가고, `?redirectTo=`는 `safeRedirectPath`로 거른 사이트 안 경로만 따른다(`//evil.example`·`/\evil.example`·인증 화면은 `/`로 돌린다).
+1. `src/app/api/auth/[...path]/route.ts`가 Neon Auth 핸들러를 노출하고, `src/proxy.ts`가 보호 경로를 막는다. 공개 경로는 `/`(홈만), `/search`, `/games`, `/u`, `/dev`(하위 경로 포함)이고 나머지는 로그인이 필요하다. proxy는 **낙관적 검사**일 뿐이다. 보호 경로에서 로그인하면 원래 경로로 돌아와야 하는데(기능 명세 A1), SDK는 로그인 화면으로 보낼 때 요청의 쿼리만 옮기고 원래 경로는 붙여 주지 않는다. 그래서 `auth.middleware(...)`의 응답을 얇게 감싸 `redirectTo=<원래 경로>`를 덧붙이고(`_rsc` 같은 Next 내부 파라미터는 뺀다), proxy가 통과시킨 오래된 세션을 화면에서 비로그인으로 판정하는 경우를 위해 `requireViewer(returnTo)`도 같은 파라미터를 붙인다. `?redirectTo=`는 `safeRedirectPath`로 거른 사이트 안 경로만 따른다(`//evil.example`·`/\evil.example`·인증 화면은 `/`로 돌린다).
 2. 첫 세션에서 `profiles`를 만든다(`ensureProfile`). 닉네임은 가입 때 이름, 핸들은 임시값 `user_xxxxxxxx`다. **핸들 설정 화면은 9단계(프로필)에서 만들고**, 그때까지 내비의 프로필 칸은 `/u/{handle}` 대신 `/account`(내 계정)로 간다.
 3. **모든 쓰기는 Server Action**이며 순서는 `세션 확인 → 입력 검증(zod) → withUser({ authUserId, profileId }, tx => …)`다. 첫 로그인처럼 프로필이 아직 없으면 `profileId`는 생략한다.
 4. `withUser`는 트랜잭션을 열고 `set_config('app.user_id', <profileId>, true)`와 `set_config('app.auth_user_id', <세션의 auth 사용자 ID>, true)`를 **둘 다** 설정한 뒤 `app_user` 권한으로 질의한다(프로필 생성 시에는 `app.user_id`가 비어 있고 `app.auth_user_id`만 RLS에 쓰인다). 풀링된 연결(트랜잭션 모드)에서도 안전하도록 항상 `is_local = true`를 쓴다.
@@ -57,6 +57,7 @@ tests/                      # unit/, db/, e2e/
 **인증 구현 메모** (2단계에서 확인한 것)
 - **세션은 요청 시점에만 읽는다.** `getSessionUser()`는 `await connection()`으로 시작한다. 프리렌더·프리페치 중에는 인증 서버로 `fetch`할 수 없어 거절되는데, SDK가 그 거절을 오류로 기록해 페이지를 한 번 열 때마다 로그가 찍힌다(E2E 한 번에 41건). 세션을 읽는 컴포넌트는 항상 `<Suspense>` 안에 둔다.
 - **서버 SDK의 오류 코드는 정규화돼 온다.** `auth.signIn/signUp`은 Better Auth의 `INVALID_EMAIL_OR_PASSWORD` 같은 코드를 `invalid_credentials` 등 소문자 코드로 바꿔 돌려준다. HTTP로 직접 보면 원래 코드가 보여서 헷갈린다(처음에 그 기준으로 짜서 E2E가 잡아냈다). 또 이미 가입된 이메일(`USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL`)은 SDK 변환표에 없어 `validation_failed`로 뭉개지므로 영어 원문 메시지로 가린다(`src/features/auth/messages.ts`).
+- **로그아웃 실패는 알린다.** `auth.signOut()`은 인증 서버에 닿지 못하면 예외 없이 `{ error }`를 돌려주고 세션 쿠키를 지우지 않는다. 그때 홈으로 보내면 세션이 살아 있는데 로그아웃한 것처럼 보이므로(공용 기기에서 위험하다) 이동하지 않고 오류를 보여 준다(`SignOutForm`). `signIn`·`signUp`도 같은 방식으로 `{ error }`를 확인한다.
 - **E2E 서버 선택.** 개발 서버는 디렉터리당 하나뿐이라 `npm run dev`가 열려 있으면 Playwright의 기본 서버가 뜨지 못한다. `E2E_SERVER=prod`(운영 빌드로 실행)나 `E2E_BASE_URL`(떠 있는 서버 재사용)을 쓴다. 인증 E2E는 실제 Neon Auth(dev)에 가입하고 끝나면 계정을 지운다.
 - **범위 밖(후속).** 구글 로그인(OAuth는 헤드리스로 끝까지 검증할 수 없다)과 비밀번호 재설정 화면은 아직 없다.
 
