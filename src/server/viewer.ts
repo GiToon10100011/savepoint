@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { ensureProfile } from "@/features/profiles/ensure-profile";
 import type { Profile } from "@/server/db/schema";
 import { auth } from "./auth";
@@ -14,6 +15,9 @@ export type Viewer = { user: SessionUser; profile: Profile };
 
 /** 쿠키 세션만 읽는다(DB 조회 없음). 내비처럼 로그인 여부만 필요한 곳에서 쓴다. */
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
+  // 세션은 실제 요청이 있어야만 알 수 있다. 프리렌더·프리페치 중에는 인증 서버로 fetch할 수 없어 거절되고,
+  // SDK가 그 거절을 오류로 기록한다(페이지를 한 번 열 때마다 찍힌다). 요청이 올 때까지 렌더링을 미룬다.
+  await connection();
   const { data: session } = await auth.getSession();
   const user = session?.user;
   if (!user) return null;
