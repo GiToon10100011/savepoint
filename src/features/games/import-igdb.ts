@@ -71,8 +71,14 @@ export async function importIgdbGame(catalogPool: Pool, draft: GameDraft): Promi
       companyIds.set(company.igdbId, saved.rows[0].id);
     }
 
-    // 플랫폼: 시드에 없는 것은 IGDB 정보로 추가한다. 슬러그가 겹쳐 건너뛴 것은 연결하지 않는다.
-    for (const platform of draft.platforms) {
+    // 플랫폼: 시드에 없는 것만 IGDB 정보로 추가한다. 이미 있는 것은 INSERT를 시도하지 않는다 — `ON CONFLICT DO NOTHING`도
+    // 충돌하기 전에 식별 컬럼의 기본값(nextval)을 평가해 값을 소모하기 때문이다(게임마다 반복하면 시퀀스가 계속 간다).
+    // 동시에 같은 새 플랫폼을 넣는 경우를 위해 `ON CONFLICT DO NOTHING`은 남기고, 슬러그가 겹쳐 건너뛴 것은 연결하지 않는다.
+    const known = await client.query<{ igdb_id: number }>("select igdb_id from platforms where igdb_id = any($1)", [
+      draft.platforms.map((p) => p.igdbId),
+    ]);
+    const knownIds = new Set(known.rows.map((r) => r.igdb_id));
+    for (const platform of draft.platforms.filter((p) => !knownIds.has(p.igdbId))) {
       await client.query("insert into platforms (slug, name, igdb_id) values ($1, $2, $3) on conflict do nothing", [
         platform.slug, platform.name, platform.igdbId,
       ]);
