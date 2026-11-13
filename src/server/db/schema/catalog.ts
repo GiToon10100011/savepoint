@@ -18,7 +18,8 @@ import { profiles } from "./profiles";
 export const gameSource = pgEnum("game_source", ["igdb", "manual"]);
 
 export const platforms = pgTable("platforms", {
-  id: smallint("id").primaryKey().generatedByDefaultAsIdentity(),
+  // integer: ON CONFLICT DO NOTHING도 식별 값을 소모해 smallint는 32,767에서 막힌다(0002_platform_id_integer).
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   igdbId: integer("igdb_id").unique(),
@@ -94,7 +95,7 @@ export const gamePlatforms = pgTable(
   "game_platforms",
   {
     gameId: uuid("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
-    platformId: smallint("platform_id").notNull().references(() => platforms.id, { onDelete: "cascade" }),
+    platformId: integer("platform_id").notNull().references(() => platforms.id, { onDelete: "cascade" }),
   },
   (t) => [primaryKey({ columns: [t.gameId, t.platformId] })],
 );
