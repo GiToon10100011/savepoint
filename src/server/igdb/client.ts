@@ -107,6 +107,9 @@ export function createIgdbClient(options: IgdbClientOptions): IgdbClient {
   async function query<T>(endpoint: string, body: string): Promise<T[]> {
     let refreshedToken = false;
     for (let attempt = 0; ; attempt += 1) {
+      // 토큰은 슬롯을 잡기 전에 받아 둔다. 슬롯을 잡은 뒤에 Twitch 응답을 기다리면 그 시간만큼 간격이 사라져,
+      // 처음 부르는 동시 요청들이 토큰이 오는 순간 연달아 나간다. 슬롯 뒤의 `getToken()`은 보통 캐시된 값이다.
+      await getToken();
       await waitForSlot();
       const accessToken = await getToken();
       const response = await doFetch(`${API_URL}/${endpoint}`, {
