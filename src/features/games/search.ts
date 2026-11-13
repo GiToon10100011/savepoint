@@ -49,17 +49,17 @@ export function escapeLike(text: string): string {
   return text.replace(/[\\%_]/g, "\\$&");
 }
 
-type Row = {
+export type Row = {
   id: string; slug: string; title: string; title_ko: string | null; release_date: string | null; cover_url: string | null;
   cover_width: number | null; cover_height: number | null; rating_count: number; rating_sum: number; genre: string | null; score?: number;
 };
 
-const toHit = (row: Row): GameHit => ({
+export const toHit = (row: Row): GameHit => ({
   id: row.id, slug: row.slug, title: row.title, titleKo: row.title_ko, releaseDate: row.release_date, coverUrl: row.cover_url,
   coverWidth: row.cover_width, coverHeight: row.cover_height, ratingCount: row.rating_count, ratingSum: row.rating_sum, genre: row.genre,
 });
 
-const COLUMNS = `g.id, g.slug, g.title, g.title_ko, to_char(g.release_date, 'YYYY-MM-DD') as release_date, g.cover_url, g.cover_width, g.cover_height,
+export const COLUMNS = `g.id, g.slug, g.title, g.title_ko, to_char(g.release_date, 'YYYY-MM-DD') as release_date, g.cover_url, g.cover_width, g.cover_height,
   g.rating_count, g.rating_sum,
   (select gen.name from game_genres gg join genres gen on gen.id = gg.genre_id where gg.game_id = g.id order by gen.id limit 1) as genre`;
 
