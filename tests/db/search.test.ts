@@ -52,6 +52,17 @@ describe("커서", () => {
     expect(decodeCursor(encodeCursor(cursor))).toEqual(cursor);
   });
 
+  it("int 최댓값의 평가 수는 받아들인다(경계)", () => {
+    const cursor = { score: 0, ratingCount: 2_147_483_647, id: randomUUID() };
+    expect(decodeCursor(encodeCursor(cursor))).toEqual(cursor);
+  });
+
+  it("범위를 벗어난 커서로 검색해도 오류 없이 첫 페이지를 돌려준다", async () => {
+    const forged = Buffer.from(JSON.stringify([1, 2_147_483_648, randomUUID()])).toString("base64url");
+    await expect(popularGames(pool, { cursor: forged })).resolves.toMatchObject({ items: expect.any(Array) });
+    await expect(searchGames(pool, `Forged${RUN}`, { cursor: forged })).resolves.toMatchObject({ items: expect.any(Array) });
+  });
+
   it.each([
     ["빈 값", ""],
     ["null", null],
@@ -61,6 +72,9 @@ describe("커서", () => {
     ["uuid가 아닌 id", Buffer.from(JSON.stringify([1, 1, "not-a-uuid"])).toString("base64url")],
     ["음수 점수", Buffer.from(JSON.stringify([-1, 1, randomUUID()])).toString("base64url")],
     ["너무 큰 점수", Buffer.from(JSON.stringify([99999, 1, randomUUID()])).toString("base64url")],
+    // 평가 수 컬럼은 int라 이보다 큰 값이 쿼리에 들어가면 "out of range" 오류로 끝난다.
+    ["int 범위를 넘는 평가 수", Buffer.from(JSON.stringify([1, 2_147_483_648, randomUUID()])).toString("base64url")],
+    ["안전하지 않은 정수 평가 수", Buffer.from(JSON.stringify([1, 1e21, randomUUID()])).toString("base64url")],
     ["너무 긴 값", "a".repeat(500)],
   ])("올바르지 않은 커서는 null이다: %s", (_name, value) => {
     expect(decodeCursor(value as string | null)).toBeNull();
