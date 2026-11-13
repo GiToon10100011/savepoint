@@ -54,7 +54,8 @@ export function createIgdbClient(options: IgdbClientOptions): IgdbClient {
 
   let token: { value: string; expiresAt: number } | null = null;
   let tokenRequest: Promise<string> | null = null;
-  let nextSlot = 0;
+  // 직전 요청이 실제로 시작한 시각. 호출 순서대로 이어 붙여 줄을 세운다.
+  let previousStart: Promise<number> = Promise.resolve(Number.NEGATIVE_INFINITY);
 
   async function fetchToken(): Promise<string> {
     const response = await doFetch(TOKEN_URL, {
@@ -78,12 +79,23 @@ export function createIgdbClient(options: IgdbClientOptions): IgdbClient {
     return tokenRequest;
   }
 
-  /** 요청 시작 시각을 `minInterval` 간격으로 예약한다. 예약은 동기적으로 해서 동시 호출도 순서대로 줄 선다. */
+  /**
+   * 요청 시작 사이에 `minInterval` 이상을 둔다. 호출 순서대로 줄을 서고, 앞 요청이 **실제로 시작한 시각**을 기준으로
+   * 기다린다. 시작 시각을 미리 예약만 하면 이벤트 루프가 밀려 타이머가 늦게 깰 때 뒤 요청들이 따라붙어 연달아 시작한다.
+   */
   async function waitForSlot(): Promise<void> {
-    const current = now();
-    const start = Math.max(current, nextSlot);
-    nextSlot = start + minInterval;
-    if (start > current) await sleep(start - current);
+    const before = previousStart;
+    let markStarted!: (at: number) => void;
+    previousStart = new Promise<number>((resolve) => {
+      markStarted = resolve;
+    });
+    try {
+      const wait = (await before) + minInterval - now();
+      if (wait > 0) await sleep(wait);
+    } finally {
+      // sleep이 실패해도 뒤 요청이 영원히 기다리지 않게 항상 시작 시각을 알린다.
+      markStarted(now());
+    }
   }
 
   function backoffMs(attempt: number, retryAfter: string | null): number {
