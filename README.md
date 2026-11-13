@@ -34,7 +34,7 @@ npm run dev                  # http://localhost:3000
 | `npm test` | Vitest 단위 테스트 |
 | `npm run test:e2e` | Playwright E2E (모바일 iPhone 14 + 데스크톱, 항상 headless) |
 | `E2E_SERVER=prod npm run test:e2e` | 운영 빌드(`next start`)로 E2E. 개발 서버는 디렉터리당 하나뿐이라 `npm run dev`를 열어 둔 채로는 위 명령이 서버를 띄우지 못하는데, 이 모드는 그때도 돈다. 운영 모드에서는 `/dev/ui`가 404이므로 그 화면을 쓰는 `design-system.spec.ts`에는 쓰지 않는다 |
-| `E2E_BASE_URL=http://localhost:3000 npm run test:e2e` | 이미 떠 있는 서버를 그대로 쓴다(읽기만 하는 시험용) |
+| `E2E_BASE_URL=http://localhost:3000 npx playwright test tests/e2e/design-system.spec.ts tests/e2e/smoke.spec.ts` | 이미 떠 있는 서버를 그대로 쓴다. **읽기만 하는 시험(design-system·smoke)에만** 쓴다. 파일을 지정하지 않으면 `auth.spec.ts`까지 돌아 그 서버가 쓰는 DB에 가입하는데, 정리는 `.env.local`의 dev 브랜치만 대상으로 해서 다른 DB에 만든 계정은 지워지지 않는다 |
 | `npm run build` | 프로덕션 빌드 |
 
 Neon CLI는 전역 설치 대신 프로젝트에 고정된 버전을 쓴다: `npx neon <명령>`.
@@ -54,8 +54,9 @@ npx neon checkout test --create --no-env-pull   # DB 통합 테스트 전용 브
 ```bash
 DATABASE_URL_ADMIN="$(npx neon connection-string dev)"  npm run db:setup-roles -- .env.local
 DATABASE_URL_ADMIN="$(npx neon connection-string test)" npm run db:setup-roles -- .env.test.local
-npm run test:db   # 풀링 연결에서 RLS 설정값이 새지 않는지 등을 test 브랜치로 검증
 ```
+
+역할만 만든 상태에서는 `profiles` 테이블이 없다. 아래 "스키마와 Neon Auth"의 마이그레이션까지 적용한 **뒤에** `npm run test:db`를 돌린다.
 
 - 역할은 SQL로 만든다. 콘솔·CLI로 만든 역할은 `BYPASSRLS` 그룹에 들어가 RLS가 무력화된다.
 - 스크립트는 여러 번 실행해도 안전하며 실행할 때마다 비밀번호를 새로 만든다. 비밀번호는 출력하지 않고 env 파일에만 쓰며, 파일이 이미 있어도 권한을 600으로 좁힌 뒤 쓴다.
@@ -66,6 +67,7 @@ npm run test:db   # 풀링 연결에서 RLS 설정값이 새지 않는지 등을
 ```bash
 npm run db:migrate -- .env.local             # drizzle/ 마이그레이션을 소유자 연결로 적용한다 (역할이 먼저 있어야 한다)
 npm run db:migrate -- .env.test.local
+npm run test:db                              # test 브랜치로 RLS 설정값 격리·제약·프로필 생성을 검증한다 (마이그레이션 뒤에)
 npx neon deploy --branch dev --no-env-pull   # neon.ts의 `auth: true`로 Neon Auth를 켠다 (브랜치를 지정해 dev에만)
 npx neon neon-auth status --branch dev       # Base URL → .env.local의 NEON_AUTH_BASE_URL
 openssl rand -base64 32                      # → .env.local의 NEON_AUTH_COOKIE_SECRET (32자 이상)
