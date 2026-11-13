@@ -22,6 +22,8 @@ export type GameHit = {
 /** 키셋 커서: 마지막 항목의 (점수, 평가 수, id). 정렬이 모두 내림차순이라 `(점수, 평가 수, id) < 커서`로 이어 간다. */
 type Cursor = { score: number; ratingCount: number; id: string };
 
+const MAX_INT = 2_147_483_647;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function encodeCursor(cursor: Cursor): string {
@@ -34,7 +36,8 @@ export function decodeCursor(value: string | null | undefined): Cursor | null {
   try {
     const [score, ratingCount, id] = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as unknown[];
     if (!Number.isInteger(score) || !Number.isInteger(ratingCount) || typeof id !== "string" || !UUID.test(id)) return null;
-    if ((score as number) < 0 || (score as number) > 10_000 || (ratingCount as number) < 0) return null;
+    // 평가 수는 쿼리에서 `::int`로 비교하므로 int 범위(0–2,147,483,647)를 넘으면 DB가 "out of range"로 실패한다.
+    if ((score as number) < 0 || (score as number) > 10_000 || (ratingCount as number) < 0 || (ratingCount as number) > MAX_INT) return null;
     return { score: score as number, ratingCount: ratingCount as number, id };
   } catch {
     return null;
