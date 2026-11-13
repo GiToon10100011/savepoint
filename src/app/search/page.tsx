@@ -4,7 +4,8 @@ import { Suspense } from "react";
 import { GameCard } from "@/components/game/game-card";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { searchCatalog, type Candidate, type GameHit } from "@/features/games/search";
+import { GameGrid, MoreLink } from "@/features/games/components/game-grid";
+import { searchCatalog, type Candidate } from "@/features/games/search";
 import { appPool } from "@/server/db/client";
 import { igdbSource } from "@/server/igdb";
 import type { GameSource } from "@/server/igdb/source";
@@ -24,13 +25,6 @@ export default function SearchPage({ searchParams }: PageProps<"/search">) {
 }
 
 const year = (date: string | null) => (date ? Number(date.slice(0, 4)) : null);
-
-function hitCard(hit: GameHit) {
-  const cover = hit.coverUrl && hit.coverWidth && hit.coverHeight ? { src: hit.coverUrl, width: hit.coverWidth, height: hit.coverHeight } : null;
-  return (
-    <GameCard href={`/games/${hit.slug}`} title={hit.titleKo ?? hit.title} year={year(hit.releaseDate)} genre={hit.genre} cover={cover} hideRating />
-  );
-}
 
 function candidateCard({ draft, internalSlug }: Candidate) {
   // 이미 가져온 게임이면 내부 페이지로, 아니면 DB에 쓰지 않는 미리보기로 연결한다.
@@ -70,21 +64,9 @@ async function SearchContent({ searchParams }: Pick<PageProps<"/search">, "searc
 
       {empty ? <p className="type-body mt-6">{q ? "검색 결과가 없어요." : "아직 등록된 게임이 없어요."}</p> : null}
 
-      {result.items.length > 0 ? (
-        <ul className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4" aria-label="게임 목록">
-          {result.items.map((hit) => (
-            <li key={hit.id}>{hitCard(hit)}</li>
-          ))}
-        </ul>
-      ) : null}
+      {result.items.length > 0 ? <GameGrid items={result.items} /> : null}
 
-      {moreHref ? (
-        <p className="mt-8">
-          <Link href={moreHref} className={buttonClasses({ variant: "secondary" })}>
-            더 보기
-          </Link>
-        </p>
-      ) : null}
+      <MoreLink href={moreHref} />
 
       {result.candidates.length > 0 ? (
         <section aria-labelledby="igdb-candidates" className="mt-12">
