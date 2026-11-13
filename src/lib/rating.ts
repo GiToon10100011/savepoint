@@ -78,3 +78,35 @@ export function formatStars(value: Stars | null): string {
 export function starsLabel(value: Stars | null): string {
   return value === null ? "평가하지 않음" : `${formatStars(value)}점`;
 }
+
+/**
+ * 평균 별점을 0.1 단위 정수(4.2점 → 42)로 돌려준다. 평가가 없으면 null.
+ * `sum`은 `games.rating_sum`(저장값 1–10의 합)이라 평균 별점은 sum / count / 2 다. 부동소수점 오차 없이
+ * 소수 둘째 자리가 정확히 5일 때 올리도록(half-up) 정수로만 계산한다.
+ * 카운터는 트리거가 유지하므로, 있을 수 없는 조합(합이 개수 × 1–10을 벗어남)은 조용히 보여 주지 않고 거부한다.
+ */
+export function averageTenths(sum: number, count: number): number | null {
+  if (!Number.isInteger(count) || !Number.isInteger(sum) || count < 0) {
+    throw new RangeError(`invalid rating counters: sum=${sum}, count=${count}`);
+  }
+  if (count === 0) {
+    if (sum !== 0) throw new RangeError(`invalid rating counters: sum=${sum}, count=0`);
+    return null;
+  }
+  if (sum < count || sum > count * 10) throw new RangeError(`invalid rating counters: sum=${sum}, count=${count}`);
+  return Math.floor((sum * 10 + count) / (count * 2));
+}
+
+const COUNT_FORMAT = new Intl.NumberFormat("en-US");
+
+/** `4.2 (1,234)`. 평가가 없으면 null이라 호출한 쪽이 "아직 평가가 없어요" 같은 문구를 정한다. */
+export function formatAverage(sum: number, count: number): string | null {
+  const tenths = averageTenths(sum, count);
+  return tenths === null ? null : `${(tenths / 10).toFixed(1)} (${COUNT_FORMAT.format(count)})`;
+}
+
+/** 스크린리더용 평균 평점 설명. 평가가 없으면 null. */
+export function averageLabel(sum: number, count: number): string | null {
+  const tenths = averageTenths(sum, count);
+  return tenths === null ? null : `평균 ${(tenths / 10).toFixed(1)}점, ${COUNT_FORMAT.format(count)}명이 평가`;
+}
