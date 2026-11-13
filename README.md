@@ -77,6 +77,21 @@ openssl rand -base64 32                      # → .env.local의 NEON_AUTH_COOKI
 - 인증 서버는 Neon이 호스팅한다. 이메일 인증은 요구하지 않으므로 가입하면 바로 로그인된다.
 - E2E(`tests/e2e/auth.spec.ts`)는 실제 Neon Auth(dev 브랜치)에 가입한다. 만든 계정과 프로필은 테스트가 끝나면 지운다.
 
+### IGDB와 샘플 게임
+
+게임 검색·미리보기·가져오기는 [IGDB](https://api-docs.igdb.com/)를 쓴다. Twitch 앱을 만들어 키를 받는다.
+
+1. [Twitch 개발자 콘솔](https://dev.twitch.tv/console)에서 앱을 만든다. **클라이언트 유형은 `기밀`**이어야 Client Secret을 만들 수 있다.
+2. IGDB는 사용자 로그인 없이 서버에서 토큰을 받으므로 "OAuth 리디렉션 URL"은 쓰이지 않는다. 콘솔이 HTTPS만 받으니 `https://localhost`를 넣는다.
+3. Client ID와 Secret을 `.env.local`의 `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`에 넣는다(서버에서만 읽고 클라이언트 번들에는 들어가지 않는다).
+
+```bash
+npm run db:seed -- .env.local   # dev 브랜치에 샘플 게임 22개를 IGDB에서 가져온다 (제목이 정확히 같은 결과만, 여러 번 실행해도 안전하다)
+```
+
+- 키가 없거나 IGDB가 막혀도 내부 검색과 수동 등록(`/games/new`)은 동작한다. 검색 화면은 "외부 게임 정보를 불러오지 못했어요"라고 알린다.
+- 검색 E2E 중 IGDB 후보 시험(`tests/e2e/games.spec.ts`)과 시드는 실제 IGDB를 부른다. 상업적 이용 조건은 아직 확인하지 못했다([아키텍처 §4](docs/architecture/architecture.md#4-게임-메타데이터와-외부-api)).
+
 이 저장소의 Next.js는 `cacheComponents`와 `partialPrefetching`이 켜져 있어 기존 버전과 규칙이 다르다. 코드를 쓰기 전에 `node_modules/next/dist/docs/`의 해당 문서를 읽는다([`AGENTS.md`](AGENTS.md)).
 
 ## 디자인
