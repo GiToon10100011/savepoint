@@ -33,6 +33,8 @@ npm run dev                  # http://localhost:3000
 | `npm run typecheck` | `next typegen` 후 `tsc --noEmit` (라우트 타입은 생성 단계가 필요하다) |
 | `npm test` | Vitest 단위 테스트 |
 | `npm run test:e2e` | Playwright E2E (모바일 iPhone 14 + 데스크톱, 항상 headless) |
+| `E2E_SERVER=prod npm run test:e2e` | 운영 빌드(`next start`)로 E2E. 개발 서버는 디렉터리당 하나뿐이라 `npm run dev`를 열어 둔 채로는 위 명령이 서버를 띄우지 못하는데, 이 모드는 그때도 돈다. 운영 모드에서는 `/dev/ui`가 404이므로 그 화면을 쓰는 `design-system.spec.ts`에는 쓰지 않는다 |
+| `E2E_BASE_URL=http://localhost:3000 npm run test:e2e` | 이미 떠 있는 서버를 그대로 쓴다(읽기만 하는 시험용) |
 | `npm run build` | 프로덕션 빌드 |
 
 Neon CLI는 전역 설치 대신 프로젝트에 고정된 버전을 쓴다: `npx neon <명령>`.
@@ -58,6 +60,20 @@ npm run test:db   # 풀링 연결에서 RLS 설정값이 새지 않는지 등을
 - 역할은 SQL로 만든다. 콘솔·CLI로 만든 역할은 `BYPASSRLS` 그룹에 들어가 RLS가 무력화된다.
 - 스크립트는 여러 번 실행해도 안전하며 실행할 때마다 비밀번호를 새로 만든다. 비밀번호는 출력하지 않고 env 파일에만 쓰며, 파일이 이미 있어도 권한을 600으로 좁힌 뒤 쓴다.
 - `.env.local`, `.env.test.local`, `.neon`은 커밋하지 않는다.
+
+### 스키마와 Neon Auth (브랜치마다)
+
+```bash
+npm run db:migrate -- .env.local             # drizzle/ 마이그레이션을 소유자 연결로 적용한다 (역할이 먼저 있어야 한다)
+npm run db:migrate -- .env.test.local
+npx neon deploy --branch dev --no-env-pull   # neon.ts의 `auth: true`로 Neon Auth를 켠다 (브랜치를 지정해 dev에만)
+npx neon neon-auth status --branch dev       # Base URL → .env.local의 NEON_AUTH_BASE_URL
+openssl rand -base64 32                      # → .env.local의 NEON_AUTH_COOKIE_SECRET (32자 이상)
+```
+
+- 마이그레이션은 **손으로 쓴 SQL**이다(RLS 정책·트리거·GRANT는 스키마 비교로 만들 수 없다). 새 마이그레이션은 `npx drizzle-kit generate --custom --name=<이름>`으로 빈 파일을 만들어 채운다. `src/server/db/schema/`의 타입 정의가 실제 테이블과 같은지는 DB 테스트가 검사한다.
+- 인증 서버는 Neon이 호스팅한다. 이메일 인증은 요구하지 않으므로 가입하면 바로 로그인된다.
+- E2E(`tests/e2e/auth.spec.ts`)는 실제 Neon Auth(dev 브랜치)에 가입한다. 만든 계정과 프로필은 테스트가 끝나면 지운다.
 
 이 저장소의 Next.js는 `cacheComponents`와 `partialPrefetching`이 켜져 있어 기존 버전과 규칙이 다르다. 코드를 쓰기 전에 `node_modules/next/dist/docs/`의 해당 문서를 읽는다([`AGENTS.md`](AGENTS.md)).
 
