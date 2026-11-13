@@ -12,9 +12,11 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "db:setup-roles": "tsx scripts/db/setup-roles.ts",
+    "db:migrate": "tsx scripts/db/migrate.ts",
     "test:db": "vitest run --config vitest.db.config.mts"
   },
   "dependencies": {
+    "@neon/auth": "^0.8.2",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.6",
     "pg": "^8.23.1",
