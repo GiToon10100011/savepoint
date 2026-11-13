@@ -121,11 +121,11 @@ erDiagram
 |---|---|---|
 | `id` | uuid | PK, `gen_random_uuid()` |
 | `auth_user_id` | text | UNIQUE NOT NULL — Neon Auth 사용자 ID(타입 차이를 흡수하려고 uuid PK와 분리) |
-| `handle` | citext | UNIQUE NOT NULL, `^[a-z0-9_]{3,20}$` |
+| `handle` | citext | UNIQUE NOT NULL, `^[a-z0-9_]{3,20}$`. CHECK는 `handle::text`로 검사한다(citext의 `~`는 대소문자를 구분하지 않아 그대로 쓰면 대문자가 통과한다). 첫 로그인에는 `user_` + 16진수 8자리 임시 핸들이 붙는다 |
 | `nickname` | text | NOT NULL, 1–20자 |
 | `bio` | text | ≤ 200자 |
-| `avatar_url` | text | |
-| `created_at`, `updated_at` | timestamptz | |
+| `avatar_url` | text | `https://`로 시작, ≤ 2048자 |
+| `created_at`, `updated_at` | timestamptz | `updated_at`은 UPDATE 트리거(`set_updated_at`)가 갱신한다 |
 
 **`user_follows`** — PK(`follower_id`, `followee_id`), 둘 다 `profiles.id` FK(ON DELETE CASCADE), `CHECK (follower_id <> followee_id)`, 인덱스 `(followee_id, created_at DESC)`.
 
@@ -245,11 +245,13 @@ erDiagram
 
 앱은 `BYPASSRLS`가 없는 `app_user` 역할로 접속하고, 요청마다 트랜잭션 안에서 `set_config('app.user_id', <profile uuid>, true)`와 `set_config('app.auth_user_id', <auth id>, true)`를 설정한다. 모든 테이블에 `ENABLE ROW LEVEL SECURITY`를 적용한다. 마이그레이션·시드는 소유자 역할로 실행하고, **IGDB 가져오기만 별도의 `catalog_writer` 역할**(카탈로그 테이블에 한해 INSERT·UPDATE와 `ON CONFLICT`·`RETURNING`에 필요한 SELECT만 가능하며 이를 허용하는 RLS 정책을 둔다. 사용자 기록 테이블 접근 불가)로 실행한다.
 
-`me() = nullif(current_setting('app.user_id', true), '')::uuid`
+정책은 두 SQL 함수로 요청 컨텍스트를 읽는다. 둘 다 `STABLE`이고 `search_path`를 고정했다.
+- `app_me() = nullif(current_setting('app.user_id', true), '')::uuid` — 이 문서의 `me()`는 `app_me()`를 줄여 쓴 것이다.
+- `app_auth_user_id() = nullif(current_setting('app.auth_user_id', true), '')`
 
 | 테이블 | SELECT | INSERT / UPDATE / DELETE |
 |---|---|---|
-| `profiles` | 모두 | INSERT: `auth_user_id = current_setting('app.auth_user_id', true)`. UPDATE: `id = me()` |
+| `profiles` | 모두 | INSERT: `auth_user_id = app_auth_user_id()`. UPDATE: `id = me()`이며 컬럼 권한으로 `handle`·`nickname`·`bio`·`avatar_url`만 바꿀 수 있다(`id`·`auth_user_id`·`created_at`은 본인도 못 바꾼다). DELETE 권한은 없다. 정책은 `app_user`에만 있어 `catalog_writer` 등 다른 역할은 읽지도 못한다 |
 | `games`, 분류·회사·연결 테이블 | 모두 | `app_user`는 **읽기 전용**이며 예외는 수동 등록뿐이다. `games`는 `source = 'manual' AND created_by = me()`인 행만 INSERT·UPDATE, 연결 테이블은 해당 게임의 `created_by = me()`일 때만, `game_companies`는 `igdb_id IS NULL`인 행, `tags`는 `source = 'manual'`인 행만 INSERT를 허용한다. IGDB 가져오기는 `catalog_writer`가 수행한다 |
 | `user_games` | 모두 | `user_id = me()` |
 | `user_game_notes` | 소유자(`user_games.user_id = me()`) | 소유자 |
