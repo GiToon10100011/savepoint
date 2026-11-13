@@ -100,6 +100,14 @@ export async function cleanupTestUsers() {
       );
       const ids = rows.map((row) => row.id);
       if (ids.length === 0) return;
+      // 테스트가 수동 등록한 게임은 등록자(created_by)가 사라져도 남으므로 먼저 지운다(연결은 함께 지워진다).
+      // 그 게임에만 붙어 있던 `e2e-co-*` 회사도 지운다. 다른 워커가 진행 중인 회사는 같은 트랜잭션에서 게임에 연결되므로 건드리지 않는다.
+      await client.query("delete from games where created_by in (select id from profiles where auth_user_id = any($1))", [ids]);
+      await client.query(
+        `delete from game_companies c where c.igdb_id is null and c.slug like 'e2e-co-%'
+         and not exists (select 1 from game_developers d where d.company_id = c.id)
+         and not exists (select 1 from game_publishers p where p.company_id = c.id)`,
+      );
       await client.query("delete from profiles where auth_user_id = any($1)", [ids]);
       for (const id of ids) {
         execFileSync("npx", ["neon", "neon-auth", "user", "delete", id, "--branch", "dev"], { stdio: "ignore" });

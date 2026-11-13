@@ -137,7 +137,7 @@ erDiagram
 | `id` | uuid | PK |
 | `source` | game_source | NOT NULL |
 | `external_id` | text | IGDB 게임 ID. `UNIQUE (source, external_id) WHERE external_id IS NOT NULL` |
-| `slug` | text | UNIQUE NOT NULL |
+| `slug` | text | UNIQUE NOT NULL. 영문 소문자·숫자·하이픈(앞뒤는 하이픈 불가, 120자 이하)이며 `new`(수동 등록 경로)와 `igdb-숫자`(IGDB 미리보기 경로)는 쓸 수 없다. 한 번 정하면 바꾸지 않는다(영구 주소) |
 | `title`, `title_ko` | text | `title` NOT NULL. 표시는 `coalesce(title_ko, title)` |
 | `summary` | text | |
 | `release_date` | date | |
@@ -252,7 +252,7 @@ erDiagram
 | 테이블 | SELECT | INSERT / UPDATE / DELETE |
 |---|---|---|
 | `profiles` | 모두 | INSERT: `auth_user_id = app_auth_user_id()`. UPDATE: `id = me()`이며 컬럼 권한으로 `handle`·`nickname`·`bio`·`avatar_url`만 바꿀 수 있다(`id`·`auth_user_id`·`created_at`은 본인도 못 바꾼다). DELETE 권한은 없다. 정책은 `app_user`에만 있어 `catalog_writer` 등 다른 역할은 읽지도 못한다 |
-| `games`, 분류·회사·연결 테이블 | 모두 | `app_user`는 **읽기 전용**이며 예외는 수동 등록뿐이다. `games`는 `source = 'manual' AND created_by = me()`인 행만 INSERT·UPDATE, 연결 테이블은 해당 게임의 `created_by = me()`일 때만, `game_companies`는 `igdb_id IS NULL`인 행, `tags`는 `source = 'manual'`인 행만 INSERT를 허용한다. IGDB 가져오기는 `catalog_writer`가 수행한다 |
+| `games`, 분류·회사·연결 테이블 | 모두 | `app_user`는 **읽기 전용**이며 예외는 수동 등록뿐이다. `games`는 `source = 'manual' AND created_by = me()`인 행만 INSERT·UPDATE, 연결 테이블은 해당 게임의 `created_by = me()`일 때만, `game_companies`는 `igdb_id IS NULL`인 행, `tags`는 `source = 'manual'`인 행만 INSERT를 허용한다. IGDB 가져오기는 `catalog_writer`가 수행하며 `source = 'igdb'`인 게임·`igdb_id`가 있는 회사·플랫폼·그 게임의 연결만 쓰고 `genres`·`tags`는 읽기만 한다. **컬럼 권한으로 더 좁힌다**: 두 역할 모두 `slug`·`source`·`external_id`(수정 시)·평가 카운터(`rating_count`·`rating_sum`)를 바꿀 수 없고, `app_user`는 INSERT에서 `external_id`·카운터·`metadata_synced_at`도 지정할 수 없다. 출처와 외부 ID는 `igdb`이면 숫자 `external_id`가 있고 등록자가 없으며, `manual`이면 `external_id`가 없다는 규칙을 CHECK가 지킨다 |
 | `user_games` | 모두 | `user_id = me()` |
 | `user_game_notes` | 소유자(`user_games.user_id = me()`) | 소유자 |
 | `game_ratings` | 모두 | `user_id = me()` |

@@ -12,13 +12,15 @@ export type GameCardProps = {
   cover?: { src: string; width: number; height: number } | null;
   /** 내 평가(0.5 단위). 평가하지 않았으면 null/undefined. */
   rating?: number | null;
+  /** 내 평가 줄을 아예 그리지 않는다(검색 결과처럼 내 기록과 무관한 목록). */
+  hideRating?: boolean;
 };
 
 /**
  * 게임 카드. 이미지가 가장 중요한 요소다: 이미지에는 padding이 없고, 이미지 위에 텍스트를 올리지 않으며,
  * 제목·연도·장르·내 평가는 모두 이미지 아래에 둔다. 컬러 배지는 쓰지 않는다.
  */
-export function GameCard({ href, title, year, genre, cover, rating }: GameCardProps) {
+export function GameCard({ href, title, year, genre, cover, rating, hideRating = false }: GameCardProps) {
   const meta = [year, genre].filter(Boolean).join(" · ");
   return (
     <Card>
@@ -40,7 +42,7 @@ export function GameCard({ href, title, year, genre, cover, rating }: GameCardPr
         <CardBody>
           <h3 className="text-sm font-semibold leading-snug">{title}</h3>
           {meta ? <p className="mt-1 text-xs text-muted">{meta}</p> : null}
-          <p className="type-mono mt-2">{rating != null ? `내 평가 ${formatStars(rating)}` : "평가 전"}</p>
+          {hideRating ? null : <p className="type-mono mt-2">{rating != null ? `내 평가 ${formatStars(rating)}` : "평가 전"}</p>}
         </CardBody>
       </Link>
     </Card>
