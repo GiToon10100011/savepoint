@@ -134,6 +134,32 @@ describe("createManualGame", () => {
     expect(await count("select count(*)::int as n from games where created_by = $1", [burst.profileId])).toBe(MANUAL_GAMES_PER_HOUR);
   });
 
+  it("서로 다른 사용자가 같은 제목·같은 새 회사로 동시에 등록해도 모두 성공하고 회사는 한 행이다", async () => {
+    // 사용자별 잠금은 다른 사용자를 직렬화하지 않는다. 슬러그를 "비어 있는 값 고르기"로만 정하면 동시에 같은 값을 골라
+    // 한 명만 성공하고(slug 충돌), 회사 이름을 잠금 없이 찾으면 같은 이름의 회사가 여러 행 생긴다.
+    const people = await Promise.all(Array.from({ length: 6 }, (_, i) => makeUser(`racer${i}`)));
+    const title = `Race Title ${RUN}`;
+    const dev = `Race Studio ${RUN}`;
+    const results = await Promise.allSettled(people.map((u) => createManualGame(pool, u, input({ title, developers: [dev] }))));
+    const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected").map((r) => r.reason?.constraint ?? String(r.reason));
+    expect(failures).toEqual([]);
+
+    const slugs = results.map((r) => (r as PromiseFulfilledResult<{ slug: string }>).value.slug);
+    expect(new Set(slugs).size).toBe(people.length); // 슬러그가 모두 다르다
+    expect(slugs.filter((s) => s === `race-title-${RUN}`)).toHaveLength(1); // 접미사 없는 슬러그는 한 명만 쓴다
+    expect(await count("select count(*)::int as n from game_companies where lower(name) = lower($1)", [dev])).toBe(1);
+  });
+
+  it("제목이 달라도 같은 새 회사를 동시에 적으면 회사는 한 행이다(회사 이름 경쟁)", async () => {
+    // 위 시험은 같은 제목이라 게임 INSERT가 슬러그 유일 인덱스에서 서로를 기다려, 회사 단계가 사실상 순차가 된다.
+    // 제목을 다르게 하면 게임 INSERT는 서로 막지 않아 회사 단계에서 진짜로 겹친다(잠금이 없으면 사용자 수만큼 생긴다).
+    const people = await Promise.all(Array.from({ length: 6 }, (_, i) => makeUser(`company${i}`)));
+    const dev = `Shared Studio ${RUN}`;
+    const results = await Promise.allSettled(people.map((u, i) => createManualGame(pool, u, input({ title: `Distinct ${RUN} ${i}`, developers: [dev] }))));
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(0);
+    expect(await count("select count(*)::int as n from game_companies where lower(name) = lower($1)", [dev])).toBe(1);
+  });
+
   it("도중에 실패하면 전부 되돌린다(게임만 남지 않는다)", async () => {
     // 회사 이름이 길이 제약(200자)을 어겨 게임 INSERT 뒤 단계에서 실패한다.
     const title = `Atomic ${RUN}`;

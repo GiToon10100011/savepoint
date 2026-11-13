@@ -28,24 +28,48 @@ export class RateLimitError extends Error {
 
 export type CreatedGame = { id: string; slug: string };
 
-/** 이미 쓰이지 않는 슬러그를 고른다. 겹치면 무작위 접미사를 붙여 몇 번 더 시도한다. */
-async function freeSlug(client: PoolClient, table: "games" | "game_companies", candidate: string): Promise<string> {
+const SLUG_ATTEMPTS = 5;
+
+/**
+ * 슬러그를 정해 INSERT한다. "지금 비어 있는 슬러그를 골라 둔다"는 예약이 아니라서(서로 다른 사용자가 동시에 같은 값을
+ * 고른다) 먼저 삽입을 시도하고, 슬러그 유일 제약에 걸리면 무작위 접미사를 붙여 다시 시도한다. 실패한 문장은 트랜잭션을
+ * 중단시키므로 시도마다 SAVEPOINT로 감싸 그 시도만 되돌린다. 슬러그 충돌이 아닌 오류는 그대로 던진다.
+ */
+async function insertWithFreeSlug<T>(
+  client: PoolClient,
+  constraint: "games_slug_unique" | "game_companies_slug_unique",
+  candidate: string,
+  insert: (slug: string) => Promise<T>,
+): Promise<T> {
   let slug = candidate;
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const { rowCount } = await client.query(`select 1 from ${table} where slug = $1`, [slug]);
-    if (!rowCount) return slug;
-    slug = withSuffix(candidate);
+  for (let attempt = 1; ; attempt += 1) {
+    await client.query("savepoint slug_attempt");
+    try {
+      const result = await insert(slug);
+      await client.query("release savepoint slug_attempt");
+      return result;
+    } catch (error) {
+      await client.query("rollback to savepoint slug_attempt");
+      const conflict = (error as { code?: string; constraint?: string }).code === "23505" && (error as { constraint?: string }).constraint === constraint;
+      if (!conflict || attempt >= SLUG_ATTEMPTS) throw error;
+      slug = withSuffix(candidate);
+    }
   }
-  return slug;
 }
 
-/** 이름(한국어 이름 포함)이 같은 회사가 있으면 그것을, 없으면 IGDB와 무관한 새 회사를 만든다. */
+/**
+ * 이름(한국어 이름 포함)이 같은 회사가 있으면 그것을, 없으면 IGDB와 무관한 새 회사를 만든다. 서로 다른 사용자가 같은
+ * 새 회사를 동시에 적으면 둘 다 "없다"고 보고 같은 이름의 회사를 두 행 만들 수 있다(이름에는 유일 제약이 없다).
+ * 정규화한 이름에 트랜잭션 단위 잠금을 걸어 찾기와 만들기를 줄 세운다(앞선 트랜잭션이 커밋하면 뒤의 것이 그 행을 본다).
+ */
 async function findOrCreateCompany(client: PoolClient, name: string): Promise<string> {
+  await client.query("select pg_advisory_xact_lock(hashtext('manual_company'), hashtext(lower($1)))", [name]);
   const found = await client.query<{ id: string }>("select id from game_companies where lower(name) = lower($1) or lower(name_ko) = lower($1) limit 1", [name]);
   if (found.rows[0]) return found.rows[0].id;
-  const slug = await freeSlug(client, "game_companies", slugCandidate(name, "company"));
-  const created = await client.query<{ id: string }>("insert into game_companies (slug, name) values ($1, $2) returning id", [slug, name]);
-  return created.rows[0].id;
+  return insertWithFreeSlug(client, "game_companies_slug_unique", slugCandidate(name, "company"), async (slug) => {
+    const created = await client.query<{ id: string }>("insert into game_companies (slug, name) values ($1, $2) returning id", [slug, name]);
+    return created.rows[0].id;
+  });
 }
 
 const unique = (names: string[]) => [...new Map(names.map((n) => [n.toLowerCase(), n])).values()];
@@ -71,13 +95,14 @@ export async function createManualGame(
     );
     if (recent.rows[0].n >= MANUAL_GAMES_PER_HOUR) throw new RateLimitError();
 
-    const slug = await freeSlug(client, "games", slugCandidate(input.title));
-    const { rows } = await client.query<CreatedGame>(
-      `insert into games (source, slug, title, title_ko, summary, release_date, created_by)
-       values ('manual', $1, $2, $3, $4, $5, $6) returning id, slug`,
-      [slug, input.title, input.titleKo, input.summary, input.releaseDate, user.profileId],
-    );
-    const game = rows[0];
+    const game = await insertWithFreeSlug(client, "games_slug_unique", slugCandidate(input.title), async (slug) => {
+      const { rows } = await client.query<CreatedGame>(
+        `insert into games (source, slug, title, title_ko, summary, release_date, created_by)
+         values ('manual', $1, $2, $3, $4, $5, $6) returning id, slug`,
+        [slug, input.title, input.titleKo, input.summary, input.releaseDate, user.profileId],
+      );
+      return rows[0];
+    });
 
     const links: [string, string, string, string[]][] = [
       ["game_genres", "genre_id", "genres", input.genreSlugs],
