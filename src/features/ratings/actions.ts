@@ -21,10 +21,18 @@ const stars = z.number().refine(isValidStars);
 const gameInput = z.object({ gameId: z.uuid(), stars: stars.nullable() });
 const igdbInput = z.object({ igdbId: z.number().int().positive().max(2_147_483_647), stars });
 
-/** 쓰기는 항상 세션을 먼저 확인한다. 프로필은 첫 로그인에서 만들어진다. */
-async function currentRater(): Promise<Rater | null> {
-  const viewer = await getViewer();
-  return viewer ? { authUserId: viewer.user.id, profileId: viewer.profile.id } : null;
+/**
+ * 쓰기는 항상 세션을 먼저 확인한다. 프로필은 첫 로그인에서 만들어진다. 인증 서버나 프로필 조회가 실패해도 액션이 거부되지
+ * 않고 결과 코드로 알린다(거부되면 화면이 오류 경계로 가 버리고, 서버에는 처리되지 않은 오류가 남는다).
+ */
+async function authorize(): Promise<{ user: Rater } | { result: RatingResult }> {
+  try {
+    const viewer = await getViewer();
+    if (!viewer) return { result: { ok: false, code: "unauthenticated" } };
+    return { user: { authUserId: viewer.user.id, profileId: viewer.profile.id } };
+  } catch (error) {
+    return { result: failure(error) };
+  }
 }
 
 function failure(error: unknown): RatingResult {
@@ -36,8 +44,9 @@ function failure(error: unknown): RatingResult {
 
 /** 이미 서비스에 있는 게임의 내 별점을 남기거나 바꾸거나(0.5 단위) 취소(`null`)한다. */
 export async function rateGameAction(input: unknown): Promise<RatingResult> {
-  const user = await currentRater();
-  if (!user) return { ok: false, code: "unauthenticated" };
+  const session = await authorize();
+  if ("result" in session) return session.result;
+  const { user } = session;
   const parsed = gameInput.safeParse(input);
   if (!parsed.success) return { ok: false, code: "invalid" };
 
@@ -55,8 +64,9 @@ export async function rateGameAction(input: unknown): Promise<RatingResult> {
  * 보낸 값이 아니라 IGDB ID로 서버가 직접 조회한 것만 쓴다(아키텍처 §4.3). 성공하면 등록된 게임의 화면으로 이동한다.
  */
 export async function rateIgdbGameAction(input: unknown): Promise<RatingResult> {
-  const user = await currentRater();
-  if (!user) return { ok: false, code: "unauthenticated" };
+  const session = await authorize();
+  if ("result" in session) return session.result;
+  const { user } = session;
   const parsed = igdbInput.safeParse(input);
   if (!parsed.success) return { ok: false, code: "invalid" };
   const { igdbId } = parsed.data;
