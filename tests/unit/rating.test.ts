@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  averageLabel,
+  averageTenths,
   clampStars,
+  formatAverage,
   formatStars,
   isValidStars,
   nextStars,
@@ -115,5 +118,49 @@ describe("표시", () => {
     expect(formatStars(null)).toBe("—");
     expect(starsLabel(3.5)).toBe("3.5점");
     expect(starsLabel(null)).toBe("평가하지 않음");
+  });
+});
+
+describe("평균 평점", () => {
+  // `games.rating_sum`은 저장값(1–10)의 합이라 평균 별점 = sum / count / 2 이다.
+  it("0.1 단위로 반올림한다(소수 둘째 자리가 정확히 5면 올린다)", () => {
+    expect(averageTenths(17, 4)).toBe(21); // 2.125 → 2.1
+    expect(averageTenths(9, 2)).toBe(23); // 2.25 → 2.3
+    expect(averageTenths(7, 2)).toBe(18); // 1.75 → 1.8
+    expect(averageTenths(5, 2)).toBe(13); // 1.25 → 1.3
+  });
+
+  it("한 명의 평가는 그대로다(0.5 단위의 양 끝도 포함)", () => {
+    expect(averageTenths(1, 1)).toBe(5); // 0.5점
+    expect(averageTenths(7, 1)).toBe(35); // 3.5점
+    expect(averageTenths(10, 1)).toBe(50); // 5.0점
+  });
+
+  it("평가가 없으면 null이다", () => {
+    expect(averageTenths(0, 0)).toBeNull();
+    expect(formatAverage(0, 0)).toBeNull();
+    expect(averageLabel(0, 0)).toBeNull();
+  });
+
+  it("`4.2 (1,234)` 형식으로 보여 준다", () => {
+    expect(formatAverage(5_183, 1_234)).toBe("2.1 (1,234)");
+    expect(formatAverage(10, 1)).toBe("5.0 (1)");
+    expect(formatAverage(84_000, 20_000)).toBe("2.1 (20,000)");
+    expect(formatAverage(2_147_483_647, 2_147_483_647)).toBe("0.5 (2,147,483,647)"); // 모두 최저점(int 최대 개수)
+  });
+
+  it("스크린리더용 문구", () => {
+    expect(averageLabel(5_183, 1_234)).toBe("평균 2.1점, 1,234명이 평가");
+  });
+
+  it.each([
+    ["음수 개수", -1, -1],
+    ["정수가 아닌 개수", 3, 1.5],
+    ["개수보다 작은 합(최소 점수 1 미만)", 1, 2],
+    ["개수 × 10보다 큰 합(최대 점수 10 초과)", 21, 2],
+    ["평가가 없는데 합이 있음", 5, 0],
+    ["NaN", Number.NaN, 1],
+  ])("카운터가 어긋난 값은 거부한다: %s", (_name, sum, count) => {
+    expect(() => averageTenths(sum, count)).toThrow(RangeError);
   });
 });

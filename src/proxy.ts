@@ -12,7 +12,7 @@ const LOGIN_URL = "/auth/sign-in";
  */
 const middleware = auth.middleware({
   loginUrl: LOGIN_URL,
-  publicRoutes: ["/", "/search", "/games", "/u", "/dev"],
+  publicRoutes: ["/", "/search", "/games", "/genres", "/tags", "/companies", "/u", "/dev"],
 });
 
 export default async function proxy(request: NextRequest) {
