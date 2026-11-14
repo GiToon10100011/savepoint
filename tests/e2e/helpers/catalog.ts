@@ -22,6 +22,15 @@ export type GameFixture = {
 
 // 워커(프로세스)마다 자기가 만든 것만 기억해, 모바일·데스크톱 워커가 서로의 진행 중인 데이터를 지우지 않게 한다.
 const tokens: string[] = [];
+const importedIgdbIds: string[] = [];
+
+/**
+ * 시험이 처음 평가하면서 서비스에 가져온 IGDB 게임을 정리 대상으로 기억한다. 남겨 두면 다음 실행에서 "아직 가져오지 않은
+ * 후보"가 점점 줄어든다. 가져오기는 시험 사용자의 평가 하나가 전부이므로 평가가 1개 이하일 때만 지운다.
+ */
+export function trackImportedIgdbGame(igdbId: number) {
+  importedIgdbIds.push(String(igdbId));
+}
 
 async function withAdmin<T>(run: (client: Client) => Promise<T>): Promise<T> {
   const adminUrl = parse(readFileSync(".env.local"))["DATABASE_URL_ADMIN"];
@@ -118,6 +127,7 @@ export async function cleanupCatalogFixtures() {
       const patterns = tokens.map((token) => `${PREFIX}${token}-%`);
       // 게임을 지우면 태그·회사 연결은 함께 지워진다. 그 뒤 더 이상 어디에도 붙지 않은 시험용 태그·회사만 지운다.
       await client.query("delete from games where slug like any($1) or (slug like $2 and created_at < now() - interval '1 hour')", [patterns, `${PREFIX}%`]);
+      await client.query("delete from games where source = 'igdb' and external_id = any($1) and rating_count <= 1", [importedIgdbIds]);
       await client.query(
         `delete from tags t where t.slug like $1 and not exists (select 1 from game_tags l where l.tag_id = t.id)`,
         [`${PREFIX}%`],
