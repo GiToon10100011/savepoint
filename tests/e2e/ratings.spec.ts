@@ -93,6 +93,43 @@ test("비로그인은 로그인 안내를 보고, 가입한 뒤 평가를 등록
     await expect(page.getByText("아직 평가가 없어요")).toBeVisible();
   });
 
+  /** 서버 액션 요청(`Next-Action` 헤더가 붙은 POST)만 골라 가로챈다. */
+  const isAction = (request: { method(): string; headers(): Record<string, string> }) => request.method() === "POST" && "next-action" in request.headers();
+  const alert = page.locator("main").getByRole("alert"); // Next의 경로 안내(role=alert)와 구분하려고 main 안으로 좁힌다
+
+  await test.step("저장 요청이 끊겨도 페이지가 오류 화면이 되지 않고 이 자리에서 알리며, 바로 다시 저장할 수 있다", async () => {
+    await page.route("**/games/*", (route) => (isAction(route.request()) ? route.abort() : route.continue()));
+    await slider.focus();
+    await page.keyboard.press("2");
+    await expect(alert).toContainText("저장하지 못했어요");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible(); // 오류 경계로 가지 않았다
+    await expect(slider).toHaveAttribute("aria-valuetext", "평가하지 않음"); // 저장되지 않았으니 서버 값으로 되돌아간다
+    await page.unroute("**/games/*");
+
+    await page.keyboard.press("2"); // 입력이 막히지 않아 같은 자리에서 다시 시도할 수 있다
+    await expect(slider).toHaveAttribute("aria-valuetext", "2.0점");
+    await average("평균 2.0 (1)");
+    await expect(alert).toHaveCount(0);
+  });
+
+  await test.step("연달아 바꿨을 때 앞선 저장이 실패해도 나중 저장이 성공하면 실패 안내가 남지 않는다", async () => {
+    // 첫 요청의 중단을 늦춰서, 두 번째 조작이 첫 요청이 끝나기 전에 일어나게 한다(둘 다 안내를 지우고 시작한 상태).
+    let first = true;
+    await page.route("**/games/*", async (route) => {
+      if (!isAction(route.request()) || !first) return route.continue();
+      first = false;
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      return route.abort();
+    });
+    await slider.focus();
+    await page.keyboard.press("3");
+    await page.keyboard.press("5");
+    await expect(slider).toHaveAttribute("aria-valuetext", "5.0점");
+    await average("평균 5.0 (1)"); // 나중 조작이 서버에 저장됐다
+    await expect(alert).toHaveCount(0); // 앞선 조작의 실패가 남아 있지 않다
+    await page.unroute("**/games/*");
+  });
+
   await test.step("로그인한 상세 화면에도 접근성 위반이 없다(라이트·다크)", async () => {
     await slider.focus();
     await page.keyboard.press("3");
