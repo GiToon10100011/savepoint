@@ -97,8 +97,13 @@ test("비로그인은 로그인 안내를 보고, 가입한 뒤 평가를 등록
     await slider.focus();
     await page.keyboard.press("3");
     await expect(slider).toHaveAttribute("aria-valuetext", "3.0점");
+    await average("평균 3.0 (1)"); // 서버 저장이 끝난 뒤에 새로고침한다(끝나기 전에 떠나면 저장되지 않는다)
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
+      // 색 구성표를 바꾼 직후에는 버튼의 색 전환(transition) 중간 값이 검사돼 가짜 대비 위반이 나온다. 처음부터 그 색으로 다시 그린다.
+      await page.reload();
+      await waitForSlider(page);
+      await expect(slider).toHaveAttribute("aria-valuetext", "3.0점");
       const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
       expect(results.violations.map((v) => `${v.id}: ${v.nodes.length}곳 — ${v.nodes[0]?.target.join(" ")}`), scheme).toEqual([]);
     }
