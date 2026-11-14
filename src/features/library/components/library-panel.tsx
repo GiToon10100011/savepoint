@@ -118,7 +118,8 @@ function DateField({ id, name, label, defaultValue, error }: { id: string; name:
     <Field id={id} label={label} error={error}>
       <div className="flex gap-2">
         <Input id={id} name={name} type="date" value={value} onChange={(event) => setValue(event.target.value)} invalid={Boolean(error)} aria-describedby={describedBy(id, false, error)} />
-        <Button type="button" variant="secondary" size="sm" className="shrink-0" aria-label={`${label}을 오늘로`} onClick={() => setValue(today())}>
+        {/* 접근 가능한 이름은 보이는 글자("오늘")로 시작해야 음성 입력("오늘 클릭")과 맞는다(WCAG 2.5.3). */}
+        <Button type="button" variant="secondary" size="sm" className="shrink-0" aria-label={`오늘 (${label}에 입력)`} onClick={() => setValue(today())}>
           오늘
         </Button>
       </div>
