@@ -3,11 +3,9 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { findGameByIgdbId } from "@/features/games/detail";
-import { importIgdbGame } from "@/features/games/import-igdb";
+import { ensureIgdbGame } from "@/features/games/ensure-igdb-game";
 import { isValidStars, type Stars } from "@/lib/rating";
-import { appPool, catalogPool } from "@/server/db/client";
-import { igdbSource } from "@/server/igdb";
+import { appPool } from "@/server/db/client";
 import { getViewer } from "@/server/viewer";
 import { GameNotFoundError, setRating, type Rater } from "./ratings";
 
@@ -73,21 +71,11 @@ export async function rateIgdbGameAction(input: unknown): Promise<RatingResult> 
 
   let slug: string;
   try {
-    let game = await findGameByIgdbId(appPool(), igdbId);
-    if (!game) {
-      let draft;
-      try {
-        draft = await igdbSource().get(igdbId);
-      } catch (error) {
-        // 키가 없거나 IGDB가 막혔다. 평가는 저장하지 않고 다시 시도하게 한다(기능 명세 B4).
-        console.error("[ratings] IGDB 조회 실패:", error instanceof Error ? error.message : "알 수 없는 오류");
-        return { ok: false, code: "unavailable" };
-      }
-      if (!draft) return { ok: false, code: "not_found" };
-      game = await importIgdbGame(catalogPool(), draft);
-    }
-    await setRating(appPool(), user, game.id, parsed.data.stars);
-    slug = game.slug;
+    // 키가 없거나 IGDB가 막히면 가져오지도 평가하지도 않고 다시 시도하게 한다(기능 명세 B4).
+    const ensured = await ensureIgdbGame(igdbId);
+    if (!ensured.ok) return { ok: false, code: ensured.code };
+    await setRating(appPool(), user, ensured.game.id, parsed.data.stars);
+    slug = ensured.game.slug;
   } catch (error) {
     return failure(error);
   }
