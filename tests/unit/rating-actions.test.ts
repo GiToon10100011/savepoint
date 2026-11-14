@@ -52,6 +52,15 @@ describe("rateGameAction", () => {
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
+  it("세션 확인 자체가 실패해도(인증 서버·프로필 조회 오류) 액션이 거부되지 않고 failed로 알린다", async () => {
+    // 거부되면 화면이 오류 경계로 가 버린다. 아무것도 저장하지 않고 입력값은 로그에 남기지 않는다.
+    mocks.getViewer.mockRejectedValue(new Error("auth server unreachable"));
+    await expect(rateGameAction({ gameId: GAME_ID, stars: 4 })).resolves.toEqual({ ok: false, code: "failed" });
+    expect(mocks.setRating).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain(GAME_ID);
+  });
+
   it("세션의 사용자로 저장하고 확정된 상태를 돌려준 뒤 화면을 새로 고친다", async () => {
     await expect(rateGameAction({ gameId: GAME_ID, stars: 3.5 })).resolves.toEqual({ ok: true, ...STATE });
     expect(mocks.setRating).toHaveBeenCalledWith(mocks.appPool, RATER, GAME_ID, 3.5);
@@ -111,6 +120,15 @@ describe("rateIgdbGameAction", () => {
     await expect(rateIgdbGameAction({ igdbId: 1942, stars: 4 })).resolves.toEqual({ ok: false, code: "unauthenticated" });
     expect(mocks.igdbGet).not.toHaveBeenCalled();
     expect(mocks.importIgdbGame).not.toHaveBeenCalled();
+  });
+
+  it("세션 확인이 실패해도 액션이 거부되지 않고, IGDB를 부르거나 가져오지 않는다", async () => {
+    mocks.getViewer.mockRejectedValue(new Error("auth server unreachable"));
+    await expect(rateIgdbGameAction({ igdbId: 1942, stars: 4 })).resolves.toEqual({ ok: false, code: "failed" });
+    expect(mocks.igdbGet).not.toHaveBeenCalled();
+    expect(mocks.importIgdbGame).not.toHaveBeenCalled();
+    expect(mocks.setRating).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it.each([
