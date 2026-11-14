@@ -3,7 +3,7 @@ import { GameNotFoundError } from "@/features/ratings/ratings";
 import { isPlayStatus, type PlayStatus } from "@/lib/play-status";
 import { storedToStars, type Stars } from "@/lib/rating";
 import { runAsUser } from "@/server/db/with-user";
-import type { EntryInput } from "./entry-form";
+import { isRealDate, type EntryInput } from "./entry-form";
 
 /** 라이브러리를 쓰는 사용자. 세션의 인증 ID와 앱 프로필 ID가 모두 있어야 RLS를 통과한다. */
 export type LibraryUser = { authUserId: string; profileId: string };
@@ -128,7 +128,18 @@ export const LIBRARY_SORT_LABELS: Record<LibrarySort, string> = {
 };
 export const isLibrarySort = (value: unknown): value is LibrarySort => LIBRARY_SORTS.includes(value as LibrarySort);
 
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const TIMESTAMP = /^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?[+-](\d{2})(?::(\d{2}))?$/;
+
+/**
+ * 시각 키가 형식뿐 아니라 실제 날짜·시각인가. 형식만 맞고 없는 값(`2026-13-45`, `25:00`)이면 쿼리의 `::timestamptz` 캐스트가
+ * 실패해 목록이 오류로 끝나므로, 커서를 받을 때 걸러 첫 페이지로 읽게 한다. PostgreSQL이 내는 값(시 0–23, 분·초 0–59)만 받는다.
+ */
+function isRealTimestamp(key: string): boolean {
+  const match = TIMESTAMP.exec(key);
+  if (!match) return false;
+  const [, date, hour, minute, second, offsetHour, offsetMinute] = match;
+  return isRealDate(date) && +hour <= 23 && +minute <= 59 && +second <= 59 && +offsetHour <= 15 && (offsetMinute === undefined || +offsetMinute <= 59);
+}
 
 /**
  * 정렬마다 SQL 식(이 파일의 상수만 쓴다, 사용자 입력은 들어가지 않는다)과 키셋 커서의 키 형식이다.
@@ -137,9 +148,10 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
  */
 const SORTS: Record<LibrarySort, { expr: string; cast: string; dir: "desc" | "asc"; valid: (key: string) => boolean }> = {
   // 시각은 JS Date가 마이크로초를 잃으므로 PostgreSQL이 낸 텍스트(`2026-11-14 07:21:34.123456+00`)를 그대로 주고받는다.
-  added: { expr: "ug.added_at", cast: "timestamptz", dir: "desc", valid: (k) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,6})?[+-]\d{2}(:\d{2})?$/.test(k) },
-  played: { expr: "coalesce(ug.last_played_on, date '1970-01-01')", cast: "date", dir: "desc", valid: (k) => DATE.test(k) },
-  cleared: { expr: "coalesce(ug.cleared_on, date '1970-01-01')", cast: "date", dir: "desc", valid: (k) => DATE.test(k) },
+  added: { expr: "ug.added_at", cast: "timestamptz", dir: "desc", valid: isRealTimestamp },
+  // 날짜는 `isRealDate`로 실제 있는 날짜인지(JS Date는 `2026-02-30`을 다음 달로 밀어 받아들인다)와 DB가 받는 범위(1970–2100)까지 본다.
+  played: { expr: "coalesce(ug.last_played_on, date '1970-01-01')", cast: "date", dir: "desc", valid: isRealDate },
+  cleared: { expr: "coalesce(ug.cleared_on, date '1970-01-01')", cast: "date", dir: "desc", valid: isRealDate },
   rating: { expr: "coalesce(r.rating, 0)", cast: "int", dir: "desc", valid: (k) => /^\d{1,2}$/.test(k) },
   title: { expr: "lower(coalesce(g.title_ko, g.title))", cast: "text", dir: "asc", valid: (k) => k.length <= 400 },
 };
@@ -158,9 +170,8 @@ export function decodeLibraryCursor(value: string | null | undefined, sort: Libr
   if (!value || value.length > 2400) return null;
   try {
     const [key, id] = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as unknown[];
+    // 키는 쿼리에서 `::date`·`::timestamptz`로 캐스트된다. 형식만 맞고 없는 값이면 DB가 거절해 목록이 오류로 끝나므로 여기서 거른다.
     if (typeof key !== "string" || typeof id !== "string" || !UUID.test(id) || !SORTS[sort].valid(key)) return null;
-    // 날짜 형식은 맞지만 없는 날짜(2026-13-45)이면 DB가 캐스팅에서 실패한다. 실제 날짜인지도 확인한다.
-    if (SORTS[sort].cast === "date" && Number.isNaN(Date.parse(`${key}T00:00:00Z`))) return null;
     return { key, id };
   } catch {
     return null;

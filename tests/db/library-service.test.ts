@@ -7,6 +7,8 @@ import {
   LIBRARY_SORTS,
   NotInLibraryError,
   addToLibrary,
+  decodeLibraryCursor,
+  encodeLibraryCursor,
   getLibraryEntry,
   listLibrary,
   removeFromLibrary,
@@ -387,6 +389,57 @@ describe("목록", () => {
     // 같은 정렬의 올바른 커서는 이어서 읽는다.
     const second = await listLibrary(pool, me, { sort: "added", limit: 2, cursor: addedCursor });
     expect(second.items.map((i) => i.id).filter((id) => firstIds.includes(id))).toEqual([]);
+  });
+
+  it("DB 캐스트가 거절할 없는 날짜·시각을 실은 커서도 오류 없이 첫 페이지로 읽는다", async () => {
+    const me = await makeUser();
+    for (let i = 0; i < 3; i += 1) await seed(me, { title: `라${i}`, addedAt: `2026-02-0${i + 1}T00:00:00Z`, lastPlayedOn: "2026-03-01", clearedOn: "2026-03-02" });
+    const forged: Record<"added" | "played" | "cleared", string[]> = {
+      added: ["2026-13-45 07:21:34+00", "2026-02-30 07:21:34+00", "2026-11-14 25:21:34+00", "2026-11-14 07:21:34+99", "0000-11-14 07:21:34+00"],
+      played: ["2026-02-30", "2026-04-31", "2023-02-29", "0000-01-01"],
+      cleared: ["2026-02-30", "2026-04-31", "2023-02-29", "0000-01-01"],
+    };
+    for (const sort of ["added", "played", "cleared"] as const) {
+      for (const key of forged[sort]) {
+        const page = await listLibrary(pool, me, { sort, cursor: encodeLibraryCursor(key, randomUUID()), limit: 2 });
+        expect(page.items.length, `${sort} ${key}`).toBe(2);
+      }
+    }
+  });
+
+  it("커서가 받아들이는 날짜·시각 키는 모두 DB 캐스트도 통과한다(받은 뒤 쿼리가 실패하지 않는다)", async () => {
+    const pad = (n: number, width = 2) => String(n).padStart(width, "0");
+    const dates: string[] = [];
+    for (const y of [0, 1, 1969, 1970, 2023, 2024, 2026, 2100, 2101, 9999]) {
+      for (const m of [0, 1, 2, 4, 12, 13]) for (const d of [0, 1, 28, 29, 30, 31, 32]) dates.push(`${pad(y, 4)}-${pad(m)}-${pad(d)}`);
+    }
+    // 시각은 올바른 값에서 한 칸씩만 망가뜨려 본다.
+    const stamps: string[] = dates.map((date) => `${date} 07:21:34+00`);
+    for (const h of [0, 23, 24, 25]) stamps.push(`2026-11-14 ${pad(h)}:21:34+00`);
+    for (const m of [0, 59, 60, 99]) stamps.push(`2026-11-14 07:${pad(m)}:34+00`);
+    for (const s of [0, 59, 60, 99]) stamps.push(`2026-11-14 07:21:${pad(s)}+00`);
+    for (const offset of ["+00", "-08", "+09:30", "+14", "+15:59", "+16", "+24", "+99", "+09:60", "-03:99"]) stamps.push(`2026-11-14 07:21:34.123456${offset}`);
+
+    // 키마다 쿼리를 보내면 느리므로, 캐스트가 실패하는지를 알려 주는 임시 함수로 한 번에 묻는다(소유자 연결은 직접 연결이라 세션이 유지된다).
+    await admin.query(`create or replace function pg_temp.casts(k text, t text) returns boolean language plpgsql as $$
+      begin
+        if t = 'date' then perform k::date; else perform k::timestamptz; end if;
+        return true;
+      exception when others then return false;
+      end $$`);
+    const check = async (sort: "added" | "played" | "cleared", cast: "date" | "timestamptz", keys: string[]) => {
+      const { rows } = await admin.query<{ k: string; ok: boolean }>("select k, pg_temp.casts(k, $2) as ok from unnest($1::text[]) as k", [keys, cast]);
+      const outcomes = rows.map((row) => ({ key: row.k, db: row.ok, cursor: decodeLibraryCursor(encodeLibraryCursor(row.k, randomUUID()), sort) !== null }));
+      expect(outcomes).toHaveLength(keys.length);
+      const unsafe = outcomes.filter((o) => o.cursor && !o.db).map((o) => o.key);
+      expect(unsafe, `${sort}: 커서는 받았지만 DB는 거절하는 키`).toEqual([]);
+      // 시험이 비어 있지 않은지: 받는 키도, DB가 거절해 커서도 거절한 키도 충분히 있다.
+      expect(outcomes.filter((o) => o.cursor).length, `${sort}: 받아들인 키`).toBeGreaterThan(10);
+      expect(outcomes.filter((o) => !o.db).length, `${sort}: DB가 거절하는 키`).toBeGreaterThan(30);
+    };
+    await check("played", "date", dates);
+    await check("cleared", "date", dates);
+    await check("added", "timestamptz", stamps);
   });
 
   it("목록에 없는 정렬·필터 값은 SQL로 흘러가지 않고 기본값으로 읽힌다", async () => {

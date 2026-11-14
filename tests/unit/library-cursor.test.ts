@@ -26,6 +26,26 @@ describe("라이브러리 커서", () => {
   });
 
   it.each([
+    ["13월", "2026-13-14 07:21:34+00"],
+    ["2월 30일", "2026-02-30 07:21:34+00"],
+    ["25시", "2026-11-14 25:21:34+00"],
+    ["24시(DB는 받지만 DB가 내는 값이 아니다)", "2026-11-14 24:00:00+00"],
+    ["60분", "2026-11-14 07:60:34+00"],
+    ["60초", "2026-11-14 07:21:60+00"],
+    ["오프셋 99시간", "2026-11-14 07:21:34+99"],
+    ["오프셋 분 99", "2026-11-14 07:21:34+09:99"],
+    ["0000년(DB에 없는 해)", "0000-11-14 07:21:34+00"],
+  ])("시각 정렬 커서는 형식과 실제 날짜·시각을 모두 본다: %s", (_name, key) => {
+    expect(decodeLibraryCursor(encodeLibraryCursor(key, ID), "added")).toBeNull();
+  });
+
+  it("윤년의 2월 29일과 하루의 마지막 순간, 음수 오프셋도 받는다", () => {
+    for (const key of ["2024-02-29 00:00:00+00", "2026-12-31 23:59:59.999999-03:30", "2026-01-01 00:00:00.000001+14", "2026-11-14 07:21:34-08"]) {
+      expect(decodeLibraryCursor(encodeLibraryCursor(key, ID), "added"), key).toEqual({ key, id: ID });
+    }
+  });
+
+  it.each([
     ["빈 값", ""],
     ["null", null],
     ["undefined", undefined],
@@ -49,11 +69,22 @@ describe("라이브러리 커서", () => {
 
   it.each([
     ["없는 날짜", "2026-13-45"],
+    // JS Date는 없는 날짜를 다음 달로 밀어 받아들이지만 DB의 `::date` 캐스트는 거절한다.
+    ["2월 30일", "2026-02-30"],
+    ["30일까지인 달의 31일", "2026-04-31"],
+    ["윤년이 아닌 해의 2월 29일", "2023-02-29"],
+    ["0000년(DB에 없는 해)", "0000-01-01"],
     ["SQL을 흉내 낸 값", "2026-05-01'; drop table user_games;--"],
     ["날짜 뒤에 덧붙인 값", "2026-05-01 00:00:00"],
   ])("날짜 정렬 커서는 형식과 실제 날짜를 모두 본다: %s", (_name, key) => {
     expect(decodeLibraryCursor(encodeLibraryCursor(key, ID), "played")).toBeNull();
     expect(decodeLibraryCursor(encodeLibraryCursor(key, ID), "cleared")).toBeNull();
+  });
+
+  it("윤년의 2월 29일과 달의 마지막 날은 받는다", () => {
+    for (const key of ["2024-02-29", "2026-04-30", "2026-12-31", "2000-02-29"]) {
+      expect(decodeLibraryCursor(encodeLibraryCursor(key, ID), "played"), key).toEqual({ key, id: ID });
+    }
   });
 
   it.each([["abc"], ["100"], ["-1"], ["1.5"]])("평점 정렬 커서는 0–99 정수만 받는다: %s", (key) => {
