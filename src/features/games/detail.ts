@@ -58,6 +58,12 @@ export async function getGameBySlug(pool: Pool, slug: string): Promise<GameDetai
   };
 }
 
+/** 이미 가져온 IGDB 게임의 id와 슬러그. 없으면 null(처음 평가할 때 가져올지 정하는 데 쓴다). */
+export async function findGameByIgdbId(pool: Pool, igdbId: number): Promise<{ id: string; slug: string } | null> {
+  const { rows } = await pool.query<{ id: string; slug: string }>("select id, slug from games where source = 'igdb' and external_id = $1", [String(igdbId)]);
+  return rows[0] ?? null;
+}
+
 /** 이미 가져온 IGDB 게임이면 그 슬러그를 돌려준다(미리보기 주소를 내부 주소로 바꿀 때 쓴다). */
 export async function findSlugByIgdbId(pool: Pool, igdbId: number): Promise<string | null> {
   const { rows } = await pool.query<{ slug: string }>("select slug from games where source = 'igdb' and external_id = $1", [String(igdbId)]);
