@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import { GameRating } from "@/components/game/game-rating";
 import type { Stars } from "@/lib/rating";
 import { rateGameAction, rateIgdbGameAction, type RatingErrorCode } from "../actions";
@@ -26,18 +26,29 @@ export function MyRating({ target, initial, signInHref }: { target: RatingTarget
   const [value, setOptimistic] = useOptimistic<Stars | null, Stars | null>(initial, (_current, next) => next);
   const [error, setError] = useState<RatingErrorCode | null>(null);
   const [pending, startTransition] = useTransition();
+  const latest = useRef(0); // 가장 나중에 한 조작의 번호
 
   function change(next: Stars | null) {
     // 아직 등록되지 않은 게임에는 취소할 평가가 없다(처음 평가하면 등록되고 그 화면으로 이동한다).
     if (target.kind === "igdb" && next === null) return;
+    const interaction = ++latest.current;
     setError(null);
     startTransition(async () => {
       setOptimistic(next);
-      const result =
-        target.kind === "game"
-          ? await rateGameAction({ gameId: target.gameId, stars: next })
-          : await rateIgdbGameAction({ igdbId: target.igdbId, stars: next });
-      if (!result.ok) setError(result.code);
+      let code: RatingErrorCode | null;
+      try {
+        const result =
+          target.kind === "game"
+            ? await rateGameAction({ gameId: target.gameId, stars: next })
+            : await rateIgdbGameAction({ igdbId: target.igdbId, stars: next });
+        code = result.ok ? null : result.code;
+      } catch {
+        // 네트워크가 끊기는 등 호출 자체가 거부돼도 오류 경계(페이지 전체 오류 화면)로 보내지 않고 이 자리에서 알린다.
+        // 입력은 막지 않으므로 바로 다시 시도할 수 있다.
+        code = "failed";
+      }
+      // 연달아 바꿨다면 가장 나중 조작의 결과만 반영한다. 앞선 조작의 실패가 나중 성공 뒤에 남지 않게 한다.
+      if (interaction === latest.current) setError(code);
     });
   }
 
