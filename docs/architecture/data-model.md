@@ -189,7 +189,9 @@ erDiagram
 | `rating` | smallint | `CHECK BETWEEN 1 AND 10` (별점 × 2, REA와 동일) |
 | `created_at`, `updated_at` | timestamptz | |
 
-인덱스: `(game_id)`, `(user_id, updated_at DESC)`.
+인덱스: `(game_id)`, `(user_id, updated_at DESC)`. `updated_at`은 `set_updated_at` 트리거가 갱신한다.
+
+권한: 앱 역할은 `rating`만 바꿀 수 있고 `user_id`·`game_id`·시각은 바꿀 수 없다(컬럼 권한). RLS가 이미 소유자 변경을 막지만 같은 오류 코드(42501)라서, 컬럼 권한이 실제로 막고 있는지는 오류 메시지(`permission denied`)로 시험한다.
 
 **`game_reviews`** — 리뷰
 | 컬럼 | 타입 | 제약·비고 |
@@ -232,7 +234,7 @@ erDiagram
 | `user_games` INSERT | `library_added` 생성(`occurred_on = added_at`). **`started_on`/`cleared_on`/`perfected_on`이 NULL이 아니면 `play_started`/`ending_reached`/`completed_100`도 함께 upsert** — 등록과 동시에 날짜를 입력해도 달력에 나타난다 |
 | `user_games.started_on/cleared_on/perfected_on` UPDATE | 값이 있으면 `play_started`/`ending_reached`/`completed_100`을 upsert(`occurred_on` 갱신), NULL이면 삭제 |
 | `user_games` DELETE | 해당 사용자·게임의 `library_added`·`play_started`·`ending_reached`·`completed_100`·`play_session` 삭제. **`rated`·`reviewed`는 유지** |
-| `game_ratings` INSERT / DELETE | `rated` 생성 / 삭제 (UPDATE는 이벤트 없음) |
+| `game_ratings` INSERT / DELETE | `rated` 생성 / 삭제 (UPDATE는 이벤트 없음). **이벤트 테이블은 8단계에 생기므로 그 마이그레이션이 기존 평가를 채우고 트리거를 건다**(5단계 마이그레이션은 평가 테이블과 카운터 트리거까지만) |
 | `game_reviews` INSERT / DELETE | `reviewed` 생성 / 삭제 |
 | `game_reviews.visibility` UPDATE | `reviewed.is_public` 동기화 |
 | `play_session` | 사용자가 직접 INSERT/DELETE (`source = manual`) |
