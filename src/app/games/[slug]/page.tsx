@@ -4,6 +4,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, cache, type ReactNode } from "react";
 import { findSlugByIgdbId, getGameBySlug, type GameDetail } from "@/features/games/detail";
+import { MyRecord } from "@/features/ratings/components/my-record";
+import type { RatingTarget } from "@/features/ratings/components/my-rating";
 import { averageLabel, formatAverage } from "@/lib/rating";
 import { appPool } from "@/server/db/client";
 import { igdbSource } from "@/server/igdb";
@@ -70,7 +72,16 @@ async function GameContent({ params }: Pick<PageProps<"/games/[slug]">, "params"
 
   const game = await loadGame(slug);
   if (!game) notFound();
-  return <GameView view={fromDetail(game)} />;
+  return <GameView view={fromDetail(game)} record={<Record target={{ kind: "game", gameId: game.id }} returnTo={`/games/${game.slug}`} />} />;
+}
+
+/** 내 기록 영역. 세션을 읽는 동안에도 게임 정보는 먼저 보이도록 따로 `Suspense`로 감싼다(자리는 비워 둬 레이아웃이 밀리지 않게 한다). */
+function Record({ target, returnTo }: { target: RatingTarget; returnTo: string }) {
+  return (
+    <Suspense fallback={<div aria-hidden="true" className="mt-6 h-28" />}>
+      <MyRecord target={target} returnTo={returnTo} />
+    </Suspense>
+  );
 }
 
 /** 아직 가져오지 않은 IGDB 게임. IGDB에서 읽어 보여 줄 뿐 DB에는 아무것도 쓰지 않는다. */
@@ -110,6 +121,7 @@ async function PreviewContent({ igdbId }: { igdbId: number }) {
   return (
     <GameView
       preview
+      record={<Record target={{ kind: "igdb", igdbId }} returnTo={`/games/igdb-${igdbId}`} />}
       view={{
         title: draft.titleKo ?? draft.title,
         originalTitle: draft.titleKo ? draft.title : null,
@@ -154,7 +166,7 @@ function LinkList({ items }: { items: Linked[] }) {
   );
 }
 
-function GameView({ view, preview = false }: { view: View; preview?: boolean }) {
+function GameView({ view, preview = false, record = null }: { view: View; preview?: boolean; record?: ReactNode }) {
   const year = view.releaseDate?.slice(0, 4) ?? null;
   const facts: [string, ReactNode][] = [
     ["출시일", view.releaseDate],
@@ -199,6 +211,7 @@ function GameView({ view, preview = false }: { view: View; preview?: boolean }) 
             아직 서비스에 등록되지 않은 게임이에요. 처음 기록하면 등록돼요.
           </p>
         ) : null}
+        {record}
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
           {facts.map(([label, value]) => (value ? <Fact key={label} label={label}>{value}</Fact> : null))}
         </dl>
