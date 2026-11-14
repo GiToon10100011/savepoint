@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { LibraryPanel } from "@/features/library/components/library-panel";
+import { getLibraryEntry, listPlatforms } from "@/features/library/library";
 import { appPool } from "@/server/db/client";
 import { getViewer } from "@/server/viewer";
 import { getMyRating } from "../ratings";
@@ -12,11 +14,14 @@ import { MyRating, type RatingTarget } from "./my-rating";
 export async function MyRecord({ target, returnTo }: { target: RatingTarget; returnTo: string }) {
   const viewer = await getViewer();
   const signInHref = `/auth/sign-in?redirectTo=${encodeURIComponent(returnTo)}`;
-  // 아직 서비스에 없는 게임(미리보기)에는 평가가 있을 수 없다.
-  const initial =
-    viewer && target.kind === "game"
-      ? await getMyRating(appPool(), { authUserId: viewer.user.id, profileId: viewer.profile.id }, target.gameId)
-      : null;
+  // 아직 서비스에 없는 게임(미리보기)에는 평가도 라이브러리 항목도 있을 수 없다.
+  const user = viewer ? { authUserId: viewer.user.id, profileId: viewer.profile.id } : null;
+  const [initial, entry] =
+    user && target.kind === "game"
+      ? await Promise.all([getMyRating(appPool(), user, target.gameId), getLibraryEntry(appPool(), user, target.gameId)])
+      : [null, null];
+  // 플랫폼 선택지는 편집 폼이 있을 때만 읽는다.
+  const platforms = entry ? await listPlatforms(appPool()) : [];
 
   return (
     <section aria-labelledby="my-record" className="mt-6">
@@ -24,8 +29,9 @@ export async function MyRecord({ target, returnTo }: { target: RatingTarget; ret
         내 기록
       </h2>
       {viewer ? (
-        <div className="mt-2">
+        <div className="mt-2 grid gap-4">
           <MyRating target={target} initial={initial} signInHref={signInHref} />
+          <LibraryPanel target={target} entry={entry} platforms={platforms} />
         </div>
       ) : (
         <p className="type-body-sm mt-2">
