@@ -11,8 +11,10 @@ test.afterAll(async () => {
 
 // 가입이 들어 있어 인증 E2E와 같은 이유로(Neon Auth 429) 모바일·데스크톱 워커가 번갈아 돌게 줄 세운다.
 let release: (() => Promise<void>) | undefined;
-test.beforeEach(async () => {
+test.beforeEach(async ({}, testInfo) => {
   test.setTimeout(240_000);
+  // 가입하지 않는 시험(방문자)은 잠금이 필요 없다. 잠금을 기다리다 시간이 초과되는 것을 막는다.
+  if (testInfo.annotations.some((annotation) => annotation.type === "no-auth-lock")) return;
   release = await acquireAuthLock();
 });
 test.afterEach(async () => {
@@ -29,8 +31,12 @@ async function waitForReact(page: Page, selector: string) {
 }
 
 const RECORD = 'section[aria-labelledby="my-record"]';
-/** `내 기록`의 리뷰 패널(라이브러리 패널과 같은 `details`라서 리뷰 입력칸을 가진 것으로 고른다). */
-const reviewPanel = (page: Page) => page.locator(`${RECORD} details`).filter({ has: page.locator("#review-body") });
+/**
+ * `내 기록`의 리뷰 패널(라이브러리 패널과 같은 `details`라서 리뷰 입력칸을 가진 것으로 고른다). `:visible`은 이전 화면 때문이다:
+ * Next(cacheComponents)는 다른 게임 화면으로 이동해도 이전 화면을 숨긴 채 DOM에 남겨 두므로, 미리보기에서 등록된 게임으로
+ * 이동하면 숨겨진 이전 패널도 함께 일치한다.
+ */
+const reviewPanel = (page: Page) => page.locator(`${RECORD}:visible details`).filter({ has: page.locator("#review-body") });
 const items = (page: Page) => page.getByRole("list", { name: "리뷰 목록" }).getByRole("listitem");
 const heading = (page: Page) => page.getByRole("heading", { name: /^리뷰 \d/ });
 const sortLink = (page: Page, name: string) => page.getByRole("navigation", { name: "리뷰 정렬" }).getByRole("link", { name, exact: true });
@@ -128,6 +134,7 @@ test("리뷰를 쓰고 고치고 지운다(평가·라이브러리와는 독립�
     await expect(page.getByText("조건에 맞는 게임이 없어요.")).toBeVisible(); // 아직 평가하지 않았다
     await page.goto(`/games/${game.slug}`);
     await waitForReact(page, `${RECORD} button`);
+    await panel.locator("summary").click(); // 새로 연 화면이라 리뷰 패널이 접혀 있다(다음 단계가 폼을 쓴다)
   });
 
   await test.step("별점을 남기고 다시 공개하면 목록에 별점과 `수정됨`이 보인다", async () => {
@@ -247,7 +254,7 @@ test("다른 사람의 리뷰: 좋아요 순·최신순으로 읽고, 좋아요�
   });
 });
 
-test("방문자(로그인하지 않음)는 공개 리뷰를 읽을 수 있고, 한 페이지를 넘으면 `더 보기`로 이어 본다", async ({ page }) => {
+test("방문자(로그인하지 않음)는 공개 리뷰를 읽을 수 있고, 한 페이지를 넘으면 `더 보기`로 이어 본다", { annotation: { type: "no-auth-lock", description: "가입하지 않아 인증 잠금이 필요 없다" } }, async ({ page }) => {
   const game = await createGameFixture();
   // 공개 리뷰 12개: 좋아요 11…0, 최신순은 번호 0이 가장 최근이다. 비공개 1개는 어디에도 나오지 않는다.
   await createReviewFixtures(game.slug, [
