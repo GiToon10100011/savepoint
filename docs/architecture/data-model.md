@@ -168,19 +168,19 @@ erDiagram
 | `id` | uuid | PK |
 | `user_id`, `game_id` | uuid | FK, **UNIQUE (user_id, game_id)** |
 | `status` | play_status | **NULL 허용** — 상태를 지정하지 않고 등록할 수 있다(상태 미지정). 값이 있으면 7개 중 하나 |
-| `platform_id` | smallint | FK NULL |
+| `platform_id` | integer | FK NULL. 플랫폼이 지워지면 NULL(0002에서 플랫폼 ID를 integer로 넓혔다) |
 | `added_at` | timestamptz | 시스템. 게임 등록일 |
 | `started_on`, `cleared_on`, `perfected_on` | date | 사용자 입력, NULL 허용 |
-| `last_played_on` | date | 시스템 갱신 + 수동 수정 |
+| `last_played_on` | date | 시스템 갱신 + 수동 수정. 진행도(퍼센트·텍스트)나 플레이 시간이 **값으로 바뀔 때** 트리거가 오늘(`Asia/Seoul`)로 맞춘다. 값을 지우는 변경과 같은 값은 건드리지 않고, 같은 문장에서 사용자가 직접 바꾸면 그 값을 존중한다 |
 | `playtime_minutes` | int | `CHECK >= 0` |
-| `progress_kind` | progress_kind | 기본 `percent` |
+| `progress_kind` | progress_kind | 기본 `percent`. 지금은 항상 `percent`이고 퍼센트와 텍스트를 함께 저장한다(챕터·체크리스트 확장 여지) |
 | `progress_percent` | smallint | `CHECK BETWEEN 0 AND 100` |
 | `progress_text` | text | ≤ 100자 |
 | `updated_at` | timestamptz | |
 
-제약: `CHECK (cleared_on IS NULL OR started_on IS NULL OR cleared_on >= started_on)`. **상태 전환 제약은 두지 않는다**(자유 전환). 인덱스: `(user_id, status, updated_at DESC)`, `(user_id, last_played_on DESC)`, `(user_id, cleared_on DESC) WHERE cleared_on IS NOT NULL`.
+제약: `CHECK (cleared_on IS NULL OR started_on IS NULL OR cleared_on >= started_on)`. 날짜 네 컬럼은 1970-01-01–2100-12-31, 플레이 시간은 0–1,000,000분, 진행도 텍스트는 비어 있으면 NULL로 저장하고 1–100자(빈 문자열은 두지 않는다). **상태 전환 제약은 두지 않는다**(자유 전환). 앱 역할은 `user_id`·`game_id`·`added_at`·`updated_at`을 만든 뒤에 바꿀 수 없다(컬럼 권한). 달력 이벤트(`library_added` 등)를 만드는 트리거는 이벤트 테이블이 생기는 8단계에 건다(그 마이그레이션이 기존 라이브러리를 채운다). 인덱스: `(user_id, status, updated_at DESC)`, `(user_id, last_played_on DESC)`, `(user_id, cleared_on DESC) WHERE cleared_on IS NOT NULL`.
 
-**`user_game_notes`** — 개인 메모(비공개): PK `user_game_id` → `user_games.id` ON DELETE CASCADE, `note` text ≤ 2,000자.
+**`user_game_notes`** — 개인 메모(비공개): PK `user_game_id` → `user_games.id` ON DELETE CASCADE, `note` text 1–2,000자(비우면 행을 지운다), `updated_at`. 읽기·쓰기 모두 그 항목의 소유자만이라, 다른 사용자가 라이브러리 항목을 읽어도 메모는 따라오지 않는다.
 
 **`game_ratings`** — 평가
 | 컬럼 | 타입 | 제약 |

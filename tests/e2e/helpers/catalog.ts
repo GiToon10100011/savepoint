@@ -121,6 +121,43 @@ export async function createTaggedGames(count: number): Promise<{ tag: Named; ti
   return { tag, titles };
 }
 
+/**
+ * 가입한 시험 사용자(닉네임으로 찾는다)의 라이브러리를 게임 `count`개로 직접 채운다(한 페이지를 넘는 목록·정렬·필터 시험용).
+ * 제목은 `Fixture Lib <토큰> NN`이라 가나다순이 번호순이고, 짝수 번호는 `플레이 중`, 홀수는 상태 미지정이다. 등록 시각은 하루 전부터
+ * 번호 순으로 늘려, 화면에서 방금 직접 추가한 항목이 항상 가장 최근이 되게 한다. 가입 **뒤에** 불러야 한다(프로필이 있어야 한다).
+ * 게임을 지우면 항목도 함께 지워지므로 정리는 기존 `e2e-fx-` 슬러그 패턴이 맡는다. `count`는 99 이하다.
+ */
+export async function createLibraryFixtures(nickname: string, count: number): Promise<{ titles: string[] }> {
+  const token = randomUUID().slice(0, 8);
+  tokens.push(token);
+  const prefix = `Fixture Lib ${token} `;
+  await withAdmin(async (client) => {
+    const profile = await client.query<{ id: string }>("select id from profiles where nickname = $1", [nickname]);
+    if (!profile.rows[0]) throw new Error(`닉네임 ${nickname}의 프로필이 없다(가입한 뒤에 불러야 한다)`);
+    await client.query("begin");
+    try {
+      await client.query(
+        `with g as (
+           insert into games (source, slug, title)
+           select 'manual', $1::text || '-l' || n, $2::text || lpad(n::text, 2, '0') from generate_series(0, $3::int - 1) n
+           returning id, title
+         )
+         insert into user_games (user_id, game_id, status, added_at)
+         select $4::uuid, g.id,
+                case when right(g.title, 2)::int % 2 = 0 then 'playing'::play_status end,
+                now() - interval '1 day' + right(g.title, 2)::int * interval '1 minute'
+         from g`,
+        [`${PREFIX}${token}`, prefix, count, profile.rows[0].id],
+      );
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    }
+  });
+  return { titles: Array.from({ length: count }, (_, i) => `${prefix}${String(i).padStart(2, "0")}`) };
+}
+
 /** 이 워커가 만든 데이터와, 비정상 종료로 남은 한 시간 넘은 데이터를 지운다. */
 export async function cleanupCatalogFixtures() {
   try {
