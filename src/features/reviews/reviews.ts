@@ -194,8 +194,9 @@ export async function listReviews(pool: Pool, viewer: Reviewer | null, gameId: s
                order by ${sort.order}
                limit ${bind(limit + 1)}`;
 
-  // 로그인했으면 세션 컨텍스트로 읽는다(내가 누른 좋아요를 RLS가 보여 주려면 app.user_id가 필요하다). 방문자는 공개 행만 읽는다.
-  const { rows } = viewer ? await runAsUser(pool, viewer, (_tx, client) => client.query<ListRow>(sql, params)) : await pool.query<ListRow>(sql, params);
+  // 세션 컨텍스트 없이 읽는다: 공개 리뷰와 그 좋아요 행은 누구나 읽을 수 있고(RLS), 내가 눌렀는지·내 리뷰인지는 `$2`(내 프로필 id)로
+  // 가려낸다. 방문자는 `$2`가 NULL이라 눌렀거나 내 것인 항목이 없다. 트랜잭션과 세션 설정 왕복이 필요 없다.
+  const { rows } = await pool.query<ListRow>(sql, params);
 
   const page = rows.slice(0, limit);
   const last = page[page.length - 1];
@@ -251,12 +252,9 @@ export async function setReviewLike(pool: Pool, user: Reviewer, reviewId: string
       await client.query("delete from game_review_likes where review_id = $1 and user_id = $2", [reviewId, user.profileId]);
     }
 
-    const { rows } = await client.query<{ like_count: number; liked: boolean }>(
-      `select r.like_count, exists (select 1 from game_review_likes l where l.review_id = r.id and l.user_id = $2) as liked
-       from game_reviews r where r.id = $1`,
-      [reviewId, user.profileId],
-    );
+    // 방금 한 일의 결과가 곧 내 상태다(누른 직후엔 눌렀고 취소한 직후엔 아니다). 수는 트리거가 맞춘 값을 읽는다.
+    const { rows } = await client.query<{ like_count: number }>("select like_count from game_reviews where id = $1", [reviewId]);
     if (!rows[0]) throw new ReviewNotFoundError(); // 취소(delete)는 그 사이 지워진 리뷰여도 오류가 나지 않으므로 여기서 잡는다
-    return { liked: rows[0].liked, likeCount: rows[0].like_count };
+    return { liked, likeCount: rows[0].like_count };
   });
 }
