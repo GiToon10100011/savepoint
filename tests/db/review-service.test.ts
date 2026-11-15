@@ -332,6 +332,37 @@ describe("좋아요", () => {
     expect(await setReviewLike(pool, bob, id, false)).toEqual({ liked: false, likeCount: 0 });
   });
 
+  it("이미 눌러 둔 좋아요를 또 누르는 사이 다른 탭이 취소해도, 응답의 내 상태와 수는 같은 시점의 값이다", async () => {
+    const [author, fan, game] = [await makeUser(), await makeUser(), await makeGame()];
+    const { id } = await saveReview(pool, author, game, input());
+    await setReviewLike(pool, fan, id, true); // 이미 눌러 둔 상태: 아래 호출은 아무것도 바꾸지 않는 경로를 지난다
+    // 응답을 만드는 마지막 조회 직전에 다른 탭의 취소가 끼어든다(소유자 연결로 직접 지운다. 커밋된 뒤라 마지막 조회가 그 결과를 읽는다).
+    let cancelled = false;
+    const racing = {
+      connect: async () => {
+        const client = await pool.connect();
+        return new Proxy(client, {
+          get(target, property) {
+            const value = Reflect.get(target, property, target);
+            if (property !== "query") return typeof value === "function" ? value.bind(target) : value;
+            return async (...args: unknown[]) => {
+              const sql = args[0];
+              if (!cancelled && typeof sql === "string" && sql.trimStart().startsWith("select") && sql.includes("like_count")) {
+                cancelled = true;
+                await admin.query("delete from game_review_likes where review_id = $1 and user_id = $2", [id, fan.profileId]);
+              }
+              return (value as (...inner: unknown[]) => unknown).apply(target, args);
+            };
+          },
+        });
+      },
+    } as unknown as Pool;
+    const result = await setReviewLike(racing, fan, id, true);
+    expect(cancelled, "경쟁 상황이 실제로 만들어졌는지").toBe(true);
+    // 요청한 값(liked: true)을 그대로 돌려주면 수는 0인데 눌러 둔 것으로 보여 어긋난다. 읽은 값 그대로여야 한다.
+    expect(result).toEqual({ liked: false, likeCount: 0 });
+  });
+
   it("여러 사람이 누른 수가 모이고, 내 상태는 내 것만 반영한다", async () => {
     const [author, bob, carol, game] = [await makeUser(), await makeUser(), await makeUser(), await makeGame()];
     const { id } = await saveReview(pool, author, game, input());

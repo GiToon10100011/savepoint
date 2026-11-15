@@ -252,9 +252,14 @@ export async function setReviewLike(pool: Pool, user: Reviewer, reviewId: string
       await client.query("delete from game_review_likes where review_id = $1 and user_id = $2", [reviewId, user.profileId]);
     }
 
-    // 방금 한 일의 결과가 곧 내 상태다(누른 직후엔 눌렀고 취소한 직후엔 아니다). 수는 트리거가 맞춘 값을 읽는다.
-    const { rows } = await client.query<{ like_count: number }>("select like_count from game_reviews where id = $1", [reviewId]);
+    // 내 상태와 수를 **한 문장**으로 함께 읽는다(같은 스냅샷). 요청한 값을 그대로 돌려주면 이미 눌러 둔 좋아요를 또 누르는 경우처럼
+    // 문장이 아무것도 바꾸지 않을 때 다른 탭의 취소가 그 사이에 끼어들어, 수는 줄었는데 눌러 둔 것으로 보이는 쌍이 나간다.
+    const { rows } = await client.query<{ like_count: number; liked: boolean }>(
+      `select r.like_count, exists (select 1 from game_review_likes l where l.review_id = r.id and l.user_id = $2) as liked
+       from game_reviews r where r.id = $1`,
+      [reviewId, user.profileId],
+    );
     if (!rows[0]) throw new ReviewNotFoundError(); // 취소(delete)는 그 사이 지워진 리뷰여도 오류가 나지 않으므로 여기서 잡는다
-    return { liked, likeCount: rows[0].like_count };
+    return { liked: rows[0].liked, likeCount: rows[0].like_count };
   });
 }
