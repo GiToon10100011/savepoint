@@ -1,4 +1,5 @@
 import { charLength } from "@/features/profiles/handle";
+import { isRealDate } from "@/lib/keyset";
 import { isPlayStatus, type PlayStatus } from "@/lib/play-status";
 
 /** 서버가 저장하는 값. 비워 둔 칸은 모두 null이다. */
@@ -39,20 +40,14 @@ export type EntryFormResult =
 export const MAX_PLAYTIME_MINUTES = 1_000_000;
 export const MAX_PROGRESS_TEXT = 100;
 export const MAX_NOTE = 2000;
-const MIN_DATE = "1970-01-01";
-const MAX_DATE = "2100-12-31";
 
 const field = (form: FormData, key: string) => {
   const value = form.get(key);
   return typeof value === "string" ? value : "";
 };
 
-/** `YYYY-MM-DD` 형식이고 실제로 있는 날짜이며 DB가 받는 범위 안인가. */
-export function isRealDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value && value >= MIN_DATE && value <= MAX_DATE;
-}
+// 날짜 검증은 키셋 커서와 같은 기준을 쓰도록 공용 모듈에 있다. 기존 import 경로를 지키려고 다시 내보낸다.
+export { isRealDate };
 
 const DATE_ERROR = "올바른 날짜(예: 2026-05-01)여야 해요.";
 

@@ -158,13 +158,64 @@ export async function createLibraryFixtures(nickname: string, count: number): Pr
   return { titles: Array.from({ length: count }, (_, i) => `${prefix}${String(i).padStart(2, "0")}`) };
 }
 
+export type ReviewFixture = {
+  /** 작성자의 닉네임(화면에 그대로 보인다) */
+  nickname: string;
+  body: string;
+  likes?: number;
+  hasSpoiler?: boolean;
+  visibility?: "public" | "private";
+  /** 작성자가 이 게임에 남긴 별점(저장값 1–10, 별점 × 2). 없으면 평가하지 않은 작성자다. */
+  rating?: number;
+  /** 몇 분 전에 썼는지(클수록 오래됐다). 기본 1분. */
+  minutesAgo?: number;
+};
+
+/**
+ * 다른 사용자(시험용 프로필)가 쓴 리뷰를 그 게임에 직접 만든다: 좋아요·정렬·`더 보기`·비공개를 시험하려면 남이 쓴 리뷰가 필요해서다.
+ * 좋아요 수와 작성 시각은 앱이 정할 수 없는 값이라 소유자 권한으로 정한다(좋아요 행 없이 수만 정한다). 프로필·리뷰·별점은 게임이나
+ * 프로필을 지우면 함께 지워지므로 정리는 `cleanupCatalogFixtures`가 맡는다. 작성자의 `handle`은 `fx<토큰><번호>`다.
+ */
+export async function createReviewFixtures(gameSlug: string, reviews: ReviewFixture[]): Promise<{ handles: string[] }> {
+  const token = randomUUID().slice(0, 8);
+  tokens.push(token);
+  const handles = reviews.map((_, i) => `fx${token}${i}`);
+  await withAdmin(async (client) => {
+    const game = await client.query<{ id: string }>("select id from games where slug = $1", [gameSlug]);
+    if (!game.rows[0]) throw new Error(`게임 ${gameSlug}이 없다`);
+    await client.query("begin");
+    try {
+      for (const [i, review] of reviews.entries()) {
+        const profile = await client.query<{ id: string }>("insert into profiles (auth_user_id, handle, nickname) values ($1, $2, $3) returning id", [
+          `${PREFIX}${token}-r${i}`,
+          handles[i],
+          review.nickname,
+        ]);
+        await client.query(
+          `insert into game_reviews (user_id, game_id, body, has_spoiler, visibility, like_count, created_at, updated_at)
+           values ($1, $2, $3, $4, $5, $6, now() - $7 * interval '1 minute', now() - $7 * interval '1 minute')`,
+          [profile.rows[0].id, game.rows[0].id, review.body, review.hasSpoiler ?? false, review.visibility ?? "public", review.likes ?? 0, review.minutesAgo ?? 1],
+        );
+        if (review.rating) await client.query("insert into game_ratings (user_id, game_id, rating) values ($1, $2, $3)", [profile.rows[0].id, game.rows[0].id, review.rating]);
+      }
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    }
+  });
+  return { handles };
+}
+
 /** 이 워커가 만든 데이터와, 비정상 종료로 남은 한 시간 넘은 데이터를 지운다. */
 export async function cleanupCatalogFixtures() {
   try {
     await withAdmin(async (client) => {
       const patterns = tokens.map((token) => `${PREFIX}${token}-%`);
-      // 게임을 지우면 태그·회사 연결은 함께 지워진다. 그 뒤 더 이상 어디에도 붙지 않은 시험용 태그·회사만 지운다.
+      // 게임을 지우면 태그·회사 연결과 그 게임의 리뷰·평가는 함께 지워진다. 그 뒤 더 이상 어디에도 붙지 않은 시험용 태그·회사만 지운다.
       await client.query("delete from games where slug like any($1) or (slug like $2 and created_at < now() - interval '1 hour')", [patterns, `${PREFIX}%`]);
+      // 시험용 작성자 프로필(리뷰 시험용 `createReviewFixtures`가 만든 것)도 지운다. 프로필을 지우면 남은 리뷰·좋아요도 함께 지워진다.
+      await client.query("delete from profiles where auth_user_id like any($1) or (auth_user_id like $2 and created_at < now() - interval '1 hour')", [patterns, `${PREFIX}%`]);
       await client.query(
         "delete from games g where g.source = 'igdb' and g.external_id = any($1) and not exists (select 1 from game_ratings r where r.game_id = g.id)",
         [importedIgdbIds],

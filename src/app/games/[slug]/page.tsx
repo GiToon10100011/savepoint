@@ -6,6 +6,7 @@ import { Suspense, cache, type ReactNode } from "react";
 import { findSlugByIgdbId, getGameBySlug, type GameDetail } from "@/features/games/detail";
 import { MyRecord } from "@/features/ratings/components/my-record";
 import type { RatingTarget } from "@/features/ratings/components/my-rating";
+import { ReviewSection } from "@/features/reviews/components/review-list";
 import { averageLabel, formatAverage } from "@/lib/rating";
 import { appPool } from "@/server/db/client";
 import { igdbSource } from "@/server/igdb";
@@ -22,12 +23,12 @@ export async function generateMetadata({ params }: PageProps<"/games/[slug]">): 
   return { title: game ? (game.titleKo ?? game.title) : "게임" };
 }
 
-export default function GamePage({ params }: PageProps<"/games/[slug]">) {
+export default function GamePage({ params, searchParams }: PageProps<"/games/[slug]">) {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 lg:px-8">
       {/* 게임 정보는 요청 시점 데이터라 Suspense 경계 안에서 읽는다(Cache Components). */}
       <Suspense fallback={null}>
-        <GameContent params={params} />
+        <GameContent params={params} searchParams={searchParams} />
       </Suspense>
     </main>
   );
@@ -65,14 +66,29 @@ const fromDetail = (g: GameDetail): View => ({
   rating: { text: formatAverage(g.ratingSum, g.ratingCount), label: averageLabel(g.ratingSum, g.ratingCount) },
 });
 
-async function GameContent({ params }: Pick<PageProps<"/games/[slug]">, "params">) {
+async function GameContent({ params, searchParams }: Pick<PageProps<"/games/[slug]">, "params" | "searchParams">) {
   const { slug } = await params;
   const preview = /^igdb-(\d+)$/.exec(slug);
   if (preview) return <PreviewContent igdbId={Number(preview[1])} />;
 
   const game = await loadGame(slug);
   if (!game) notFound();
-  return <GameView view={fromDetail(game)} record={<Record target={{ kind: "game", gameId: game.id }} returnTo={`/games/${game.slug}`} />} />;
+  return (
+    <GameView
+      view={fromDetail(game)}
+      record={<Record target={{ kind: "game", gameId: game.id }} returnTo={`/games/${game.slug}`} />}
+      reviews={<Reviews gameId={game.id} slug={game.slug} searchParams={searchParams} />}
+    />
+  );
+}
+
+/** 리뷰 목록. 세션·목록을 읽는 동안에도 게임 정보는 먼저 보이도록 따로 `Suspense`로 감싼다. */
+function Reviews({ gameId, slug, searchParams }: { gameId: string; slug: string; searchParams: PageProps<"/games/[slug]">["searchParams"] }) {
+  return (
+    <Suspense fallback={<div aria-hidden="true" className="mt-8 h-24" />}>
+      <ReviewSection gameId={gameId} slug={slug} searchParams={searchParams} />
+    </Suspense>
+  );
 }
 
 /** 내 기록 영역. 세션을 읽는 동안에도 게임 정보는 먼저 보이도록 따로 `Suspense`로 감싼다(자리는 비워 둬 레이아웃이 밀리지 않게 한다). */
@@ -166,7 +182,7 @@ function LinkList({ items }: { items: Linked[] }) {
   );
 }
 
-function GameView({ view, preview = false, record = null }: { view: View; preview?: boolean; record?: ReactNode }) {
+function GameView({ view, preview = false, record = null, reviews = null }: { view: View; preview?: boolean; record?: ReactNode; reviews?: ReactNode }) {
   const year = view.releaseDate?.slice(0, 4) ?? null;
   const facts: [string, ReactNode][] = [
     ["출시일", view.releaseDate],
@@ -223,6 +239,7 @@ function GameView({ view, preview = false, record = null }: { view: View; previe
             <p className="type-body mt-2 whitespace-pre-line">{view.summary}</p>
           </section>
         ) : null}
+        {reviews}
       </div>
     </article>
   );

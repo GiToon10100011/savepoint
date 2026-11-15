@@ -37,7 +37,7 @@ export default function LibraryPage({ searchParams }: PageProps<"/library">) {
   );
 }
 
-/** 빠른 전환 탭. 같은 `filter` 값을 아래 선택 상자도 쓴다(상태 7가지·미지정·평가함은 선택 상자에 모두 있다). */
+/** 빠른 전환 탭. 같은 `filter` 값을 아래 선택 상자도 쓴다(상태 7가지·미지정·평가함·리뷰 작성함은 선택 상자에 모두 있다). */
 const TABS: { value: LibraryFilter; label: string }[] = [
   { value: "all", label: "전체" },
   { value: "playing", label: "플레이 중" },
@@ -45,6 +45,7 @@ const TABS: { value: LibraryFilter; label: string }[] = [
   { value: "cleared", label: "엔딩 완료" },
   { value: "perfected", label: "100% 달성" },
   { value: "rated", label: "평가함" },
+  { value: "reviewed", label: "리뷰 작성함" },
 ];
 
 const FILTER_OPTIONS: { value: LibraryFilter; label: string }[] = [
@@ -52,6 +53,7 @@ const FILTER_OPTIONS: { value: LibraryFilter; label: string }[] = [
   ...PLAY_STATUSES.map((s) => ({ value: s.value as LibraryFilter, label: s.label })),
   { value: "unset", label: UNSET_STATUS_LABEL },
   { value: "rated", label: "평가함" },
+  { value: "reviewed", label: "리뷰 작성함" },
 ];
 
 const text = (value: string | string[] | undefined) => (typeof value === "string" ? value : undefined);

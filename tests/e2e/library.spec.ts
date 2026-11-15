@@ -29,13 +29,15 @@ async function waitForReact(page: Page, selector: string) {
 }
 
 const RECORD = 'section[aria-labelledby="my-record"]';
-const rows = (page: Page) => page.getByRole("list", { name: "라이브러리 목록" }).getByRole("listitem");
+/** `내 기록`의 라이브러리 패널. 같은 영역에 리뷰 패널도 `details`라서, 라이브러리 폼에만 있는 플랫폼 선택(`#platformId`)으로 고른다. */
+const libraryPanel = (page: Page) => page.locator(`${RECORD} details`).filter({ has: page.locator("#platformId") });
+const rows =(page: Page) => page.getByRole("list", { name: "라이브러리 목록" }).getByRole("listitem");
 const tab = (page: Page, name: string) => page.getByRole("navigation", { name: "라이브러리 보기" }).getByRole("link", { name, exact: true });
 
 test("라이브러리에 추가하고 상태·진행도·날짜·메모를 기록한다(평가와는 독립이다)", async ({ page }) => {
   const user = newTestUser();
   const game = await createGameFixture();
-  const panel = page.locator(`${RECORD} details`);
+  const panel = libraryPanel(page);
   const slider = page.getByRole("slider", { name: "내 별점" });
   let platform = "";
 
@@ -258,13 +260,13 @@ test("라이브러리 패널: 접근성 위반과 라운드·그림자가 없다
   await page.goto(`/games/${game.slug}`);
   await waitForReact(page, `${RECORD} button`);
   await page.getByRole("button", { name: "라이브러리에 추가" }).click();
-  await expect(page.locator(`${RECORD} details form`)).toBeVisible();
+  await expect(libraryPanel(page).locator("form")).toBeVisible();
 
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     await page.reload(); // 처음부터 그 색으로 다시 그린다
     // 값이 없는 새 항목은 새로고침 뒤에도 기본으로 펼쳐져 있다(눌러서 접으면 안 된다).
-    await expect(page.locator(`${RECORD} details form`)).toBeVisible();
+    await expect(libraryPanel(page).locator("form")).toBeVisible();
     const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(results.violations.map((v) => `${v.id}: ${v.nodes.length}곳 — ${v.nodes[0]?.target.join(" ")}`), scheme).toEqual([]);
     const offenders = await page.evaluate(() =>
@@ -303,7 +305,7 @@ test("미리보기 게임을 처음 라이브러리에 추가하면 서비스에
 
     await expect(page).toHaveURL(/\/games\/(?!igdb-)[a-z0-9-]+$/, { timeout: 60_000 });
     await expect(page.getByRole("note")).toHaveCount(0); // 이제 서비스에 등록된 게임이다
-    await expect(page.locator(`${RECORD} details summary`)).toContainText("상태 미지정");
+    await expect(libraryPanel(page).locator("summary")).toContainText("상태 미지정");
     await page.goto("/library");
     await expect(rows(page)).toHaveCount(1);
   });

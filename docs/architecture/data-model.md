@@ -198,15 +198,17 @@ erDiagram
 |---|---|---|
 | `id` | uuid | PK |
 | `user_id`, `game_id` | uuid | **UNIQUE (user_id, game_id)**. 평가와 FK 없음 |
-| `body` | text | 1–5,000자 |
+| `body` | text | 1–5,000자(글자 단위, `char_length`). 공백·줄바꿈뿐인 글은 CHECK(`game_reviews_body_not_blank`)로 거절 |
 | `has_spoiler` | boolean | 기본 false |
 | `visibility` | review_visibility | 기본 `public` |
-| `like_count` | int | 기본 0, 트리거로 유지 |
-| `created_at`, `updated_at` | timestamptz | |
+| `like_count` | int | 기본 0, 0 이상(CHECK). 트리거로 유지하며 앱 역할은 쓸 수 없다 |
+| `created_at`, `updated_at` | timestamptz | `updated_at`은 내용(본문·스포일러·공개 범위)을 고칠 때만 갱신한다. 좋아요로 `like_count`가 바뀌는 것은 수정이 아니다(`BEFORE UPDATE OF` 트리거) |
 
-인덱스: `(game_id, visibility, like_count DESC, id)`, `(game_id, visibility, created_at DESC, id)`, `(user_id, created_at DESC)`.
+컬럼 권한: INSERT는 `user_id`·`game_id`·`body`·`has_spoiler`·`visibility`, UPDATE는 `body`·`has_spoiler`·`visibility`만이다. 소유자·게임·좋아요 수·시각은 본인도 못 바꾼다.
 
-**`game_review_likes`** — PK(`review_id`, `user_id`) → 중복 좋아요 방지. 인덱스 `(user_id)`.
+인덱스(목록 쿼리가 `visibility = 'public'`을 명시하므로 **부분 인덱스**): `(game_id, like_count DESC, created_at DESC, id DESC) WHERE visibility = 'public'`(좋아요 순, 같은 수는 최신순), `(game_id, created_at DESC, id DESC) WHERE visibility = 'public'`(최신순), `(user_id, created_at DESC, id DESC)`(프로필, 9단계). 내 비공개 리뷰는 `(user_id, game_id)` UNIQUE 인덱스로 읽는다.
+
+**`game_review_likes`** — PK(`review_id`, `user_id`) → 중복 좋아요 방지. 인덱스 `(user_id)`. UPDATE 권한은 없다. 좋아요는 **내가 볼 수 있는 남의 리뷰**에만 누를 수 있다(RLS).
 
 **`user_favorite_companies`** — PK(`user_id`, `company_id`), `created_at`. 사용자당 최대 20개는 앱에서 검사한다.
 
@@ -259,7 +261,7 @@ erDiagram
 | `user_game_notes` | 소유자(`user_games.user_id = me()`) | 소유자 |
 | `game_ratings` | 모두 | `user_id = me()` |
 | `game_reviews` | `visibility = 'public' OR user_id = me()` | `user_id = me()` |
-| `game_review_likes` | 모두 | `user_id = me()` 그리고 대상 리뷰의 작성자가 `me()`가 아님 |
+| `game_review_likes` | `user_id = me()` 또는 **내가 볼 수 있는 리뷰**의 좋아요(공개였다가 비공개가 된 리뷰의 좋아요 행은 작성자와 누른 본인만 읽는다) | INSERT: `user_id = me()` 그리고 대상이 **내가 볼 수 있는** 리뷰이며 작성자가 `me()`가 아님(자기 리뷰와 볼 수 없는 리뷰는 같은 방식으로 거절돼 비공개 리뷰의 존재가 드러나지 않는다). DELETE: `user_id = me()`. UPDATE 없음 |
 | `user_follows` | 모두 | INSERT·DELETE: `follower_id = me()` (자기 팔로우는 CHECK로 차단) |
 | `user_favorite_companies` | 모두 | `user_id = me()` |
 | `game_play_events` | `is_public OR user_id = me()` | 사용자는 `source = 'manual'`이고 `event_type = 'play_session'`, `user_id = me()`인 행만. 파생 이벤트는 `SECURITY DEFINER` 트리거 함수(고정 `search_path`)만 |
@@ -274,7 +276,7 @@ erDiagram
 | 월간 통계 | 같은 범위에서 `GROUP BY event_type` + `SUM(minutes)` | 〃 |
 | 라이브러리 | `WHERE user_id = $1 AND status = ANY($2)` + 키셋 `(정렬키, id)` | `(user_id, status, updated_at DESC)` |
 | 게임 검색 | `title ILIKE` / `similarity(...)` + 키셋 | trigram GIN |
-| 리뷰 목록 | `WHERE game_id = $1 AND (visibility='public' OR user_id=me())` 정렬 `like_count DESC, id` | 리뷰 인덱스 |
+| 리뷰 목록 | `WHERE game_id = $1 AND visibility = 'public'` 정렬 `like_count DESC, created_at DESC, id DESC`(또는 `created_at DESC, id DESC`) + 키셋. **공개 리뷰만** 읽는다: 내 비공개 리뷰는 `(user_id, game_id)`로 따로 읽어 `내 기록`에서 보여 준다 | 부분 인덱스(`WHERE visibility = 'public'`) |
 | 피드 | `WHERE user_id IN (내 팔로잉) AND is_public AND event_type <> 'play_session' AND (occurred_at, id) < ($cursor)` | `(user_id, occurred_at DESC, id DESC)` |
 | 평균 평점 | `rating_sum::numeric / nullif(rating_count,0) / 2` | `games` 행 |
 

@@ -112,8 +112,8 @@ describe("정렬·필터 값", () => {
     for (const bad of ["", "ADDED", "added; drop", "id", null, undefined, 3]) expect(isLibrarySort(bad), String(bad)).toBe(false);
   });
 
-  it("필터는 7가지 상태와 all·unset·rated만 받는다", () => {
-    for (const ok of ["all", "unset", "rated", "interested", "planned", "playing", "paused", "cleared", "perfected", "dropped"]) expect(isLibraryFilter(ok), ok).toBe(true);
-    for (const bad of ["", "PLAYING", "reviewed", "finished", null, undefined, 1]) expect(isLibraryFilter(bad), String(bad)).toBe(false);
+  it("필터는 7가지 상태와 all·unset·rated·reviewed만 받는다", () => {
+    for (const ok of ["all", "unset", "rated", "reviewed", "interested", "planned", "playing", "paused", "cleared", "perfected", "dropped"]) expect(isLibraryFilter(ok), ok).toBe(true);
+    for (const bad of ["", "PLAYING", "REVIEWED", "reviews", "finished", null, undefined, 1]) expect(isLibraryFilter(bad), String(bad)).toBe(false);
   });
 });
