@@ -100,6 +100,29 @@ test("라이브러리에 추가하고 상태·진행도·날짜·메모를 기�
     await expect(page.getByText("아직 평가가 없어요")).toBeVisible();
   });
 
+  await test.step("저장하는 동안 메모 칸이 잠겨, 그 사이 입력이 저장 뒤 초기화로 사라지지 않고 저장한 값이 그대로 남는다", async () => {
+    // 서버 액션(해당 화면으로의 POST) 응답을 늦춰 저장 중인 상태를 붙잡는다.
+    const slow = (url: URL) => url.pathname === `/games/${game.slug}`;
+    await page.route(slow, async (route) => {
+      if (route.request().method() === "POST") await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.continue();
+    });
+    const note = panel.getByLabel("메모 (선택)");
+    await note.fill("저장 중 잠금 확인");
+    await panel.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(note).toBeDisabled();
+    await expect(page.getByRole("status")).toContainText("저장했어요.");
+    await expect(note).toBeEnabled();
+    await expect(note).toHaveValue("저장 중 잠금 확인"); // 잠겨 있어도 보낸 값은 그대로 저장됐다
+    // 폼을 초기화하는 저장을 거듭해도 손대지 않은 칸(상태·날짜·플랫폼)이 지워지지 않는다.
+    await expect(panel.locator("summary")).toContainText("엔딩 완료");
+    await expect(panel.locator("summary")).toContainText(`40% · 챕터 3 · ${platform}`);
+    await expect(panel.getByLabel("엔딩 완료", { exact: true })).toBeChecked();
+    await expect(panel.getByLabel("엔딩 달성일", { exact: true })).toHaveValue("2026-05-20");
+    await expect(panel.getByLabel("플레이 시작일", { exact: true })).toHaveValue("2026-05-10");
+    await page.unroute(slow);
+  });
+
   await test.step("내 라이브러리 화면에 상태·진행도가 보이고, 탭으로 걸러 볼 수 있다", async () => {
     await page.getByRole("link", { name: "라이브러리", exact: true }).first().click();
     await expect(page).toHaveURL(/\/library$/);

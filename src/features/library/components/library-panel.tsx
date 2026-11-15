@@ -241,6 +241,8 @@ function EntryEditor({ gameId, entry, platforms }: { gameId: string; entry: Libr
             name="note"
             rows={4}
             defaultValue={values.note}
+            // 저장하는 동안 새로 입력한 글은 저장이 끝나고 폼이 초기화될 때 사라지므로 잠근다. 보낼 값은 제출 때 이미 담겼다.
+            disabled={pending}
             aria-invalid={errors?.note ? true : undefined}
             aria-describedby={describedBy("note", true, errors?.note)}
             className="w-full border border-line-input bg-card px-3 py-2 text-sm font-normal text-fg focus:border-ink aria-[invalid=true]:border-error"
