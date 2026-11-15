@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useId, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Radio } from "@/components/ui/radio";
@@ -47,6 +47,9 @@ export function ReviewPanel({ target, review }: { target: ReviewTarget; review: 
 
 function ReviewEditor({ target, review }: { target: ReviewTarget; review: MyReview | null }) {
   const [state, formAction, pending] = useActionState<SaveReviewState, FormData>(saveReviewAction, null);
+  // 입력칸의 id는 편집기마다 달라야 한다: Next(cacheComponents)는 다른 게임 화면으로 이동해도 이전 화면을 숨긴 채 DOM에 남겨 두므로,
+  // 고정 id면 라벨(`htmlFor`)과 `aria-describedby`가 숨겨진 이전 화면의 입력칸을 가리켜 보이는 입력칸이 이름을 잃는다.
+  const bodyId = useId();
   // 입력은 모두 비제어(defaultValue·defaultChecked)다: 저장이 끝나 React가 폼을 초기화할 때 기본값(=저장한 값)으로 돌아가게 하려는 것이다.
   const values = state?.values ?? toValues(review);
   const errors = state?.errors;
@@ -92,25 +95,25 @@ function ReviewEditor({ target, review }: { target: ReviewTarget; review: MyRevi
         {target.kind === "game" ? <input type="hidden" name="gameId" value={target.gameId} /> : <input type="hidden" name="igdbId" value={target.igdbId} />}
 
         <div>
-          <label htmlFor="review-body" className="mb-2 block text-sm font-semibold">
+          <label htmlFor={bodyId} className="mb-2 block text-sm font-semibold">
             리뷰
           </label>
           <textarea
-            id="review-body"
+            id={bodyId}
             name="body"
             rows={6}
             defaultValue={values.body}
             // 저장하는 동안 새로 입력한 글은 저장이 끝나고 폼이 초기화될 때 사라지므로 잠근다. 보낼 값은 제출 때 이미 담겼다.
             disabled={pending}
             aria-invalid={errors?.body ? true : undefined}
-            aria-describedby={["review-body-hint", errors?.body ? "review-body-error" : null].filter(Boolean).join(" ")}
+            aria-describedby={[`${bodyId}-hint`, errors?.body ? `${bodyId}-error` : null].filter(Boolean).join(" ")}
             className={TEXTAREA}
           />
-          <p id="review-body-hint" className="mt-2 text-xs text-muted">
+          <p id={`${bodyId}-hint`} className="mt-2 text-xs text-muted">
             {MAX_REVIEW_LENGTH.toLocaleString("en-US")}자까지 쓸 수 있어요.
           </p>
           {errors?.body ? (
-            <p id="review-body-error" aria-live="polite" className="mt-2 text-xs text-error">
+            <p id={`${bodyId}-error`} aria-live="polite" className="mt-2 text-xs text-error">
               {errors.body}
             </p>
           ) : null}

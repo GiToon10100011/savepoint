@@ -36,7 +36,7 @@ const RECORD = 'section[aria-labelledby="my-record"]';
  * Next(cacheComponents)는 다른 게임 화면으로 이동해도 이전 화면을 숨긴 채 DOM에 남겨 두므로, 미리보기에서 등록된 게임으로
  * 이동하면 숨겨진 이전 패널도 함께 일치한다.
  */
-const reviewPanel = (page: Page) => page.locator(`${RECORD}:visible details`).filter({ has: page.locator("#review-body") });
+const reviewPanel = (page: Page) => page.locator(`${RECORD}:visible details`).filter({ has: page.locator('textarea[name="body"]') });
 const items = (page: Page) => page.getByRole("list", { name: "리뷰 목록" }).getByRole("listitem");
 const heading = (page: Page) => page.getByRole("heading", { name: /^리뷰 \d/ });
 const sortLink = (page: Page, name: string) => page.getByRole("navigation", { name: "리뷰 정렬" }).getByRole("link", { name, exact: true });
@@ -61,7 +61,7 @@ test("리뷰를 쓰고 고치고 지운다(평가·라이브러리와는 독립�
     await waitForReact(page, `${RECORD} button`);
     await expect(panel.locator("summary")).toContainText("리뷰 쓰기");
     await panel.locator("summary").click();
-    await panel.locator("#review-body").fill("첫 줄\n두 번째 줄");
+    await panel.locator('textarea[name="body"]').fill("첫 줄\n두 번째 줄");
     await panel.getByLabel("스포일러가 포함돼 있어요").check();
     await save(page).click();
     await expect(page.getByRole("status")).toContainText("저장했어요.");
@@ -95,12 +95,12 @@ test("리뷰를 쓰고 고치고 지운다(평가·라이브러리와는 독립�
     await expect(panel.locator("summary")).toContainText("비공개");
     await expect(panel.getByLabel("비공개", { exact: true })).toBeChecked(); // 폼 초기화가 되돌리지 않는다
     await expect(panel.getByLabel("스포일러가 포함돼 있어요")).toBeChecked();
-    await expect(panel.locator("#review-body")).toHaveValue("첫 줄\n두 번째 줄");
+    await expect(panel.locator('textarea[name="body"]')).toHaveValue("첫 줄\n두 번째 줄");
     // 비공개 리뷰는 목록과 수에서 빠진다(내 기록에만 보인다).
     await expect(heading(page)).toHaveText(/리뷰 0$/);
     await expect(page.getByText("아직 공개 리뷰가 없어요.")).toBeVisible();
 
-    await panel.locator("#review-body").fill("고친 글");
+    await panel.locator('textarea[name="body"]').fill("고친 글");
     await save(page).click();
     await expect(page.getByRole("status")).toContainText("저장했어요.");
     await expect(panel.locator("summary")).toContainText("비공개"); // 본문만 고쳐 저장해도 공개 범위가 풀리지 않는다
@@ -114,7 +114,7 @@ test("리뷰를 쓰고 고치고 지운다(평가·라이브러리와는 독립�
     await expect(panel.locator("summary")).toContainText("내 리뷰");
     await expect(panel.locator("summary")).toContainText("비공개");
     await panel.locator("summary").click();
-    await expect(panel.locator("#review-body")).toHaveValue("고친 글");
+    await expect(panel.locator('textarea[name="body"]')).toHaveValue("고친 글");
     await expect(panel.getByLabel("비공개", { exact: true })).toBeChecked();
     await expect(panel.getByLabel("스포일러가 포함돼 있어요")).toBeChecked();
   });
@@ -158,20 +158,20 @@ test("리뷰를 쓰고 고치고 지운다(평가·라이브러리와는 독립�
     await expect(heading(page)).toHaveText(/리뷰 0$/);
     await expect(slider).toHaveAttribute("aria-valuetext", "4.0점"); // 평가는 그대로다
     await panel.locator("summary").click();
-    await expect(panel.locator("#review-body")).toHaveValue("");
+    await expect(panel.locator('textarea[name="body"]')).toHaveValue("");
     await expect(panel.getByLabel("공개", { exact: true })).toBeChecked(); // 새 폼의 기본 공개 범위
     await expect(panel.getByLabel("스포일러가 포함돼 있어요")).not.toBeChecked();
   });
 
   await test.step("올바르지 않은 입력은 한국어로 알리고 입력을 지우지 않는다", async () => {
-    await panel.locator("#review-body").fill("   ");
+    await panel.locator('textarea[name="body"]').fill("   ");
     await save(page).click();
     await expect(panel.getByText("리뷰 내용을 입력해 주세요.")).toBeVisible();
-    await expect(panel.locator("#review-body")).toHaveAttribute("aria-invalid", "true");
-    await panel.locator("#review-body").fill("가".repeat(5001));
+    await expect(panel.locator('textarea[name="body"]')).toHaveAttribute("aria-invalid", "true");
+    await panel.locator('textarea[name="body"]').fill("가".repeat(5001));
     await save(page).click();
     await expect(panel.getByText("리뷰는 5,000자까지 쓸 수 있어요. (지금 5,001자)")).toBeVisible();
-    await expect(panel.locator("#review-body")).toHaveValue("가".repeat(5001)); // 입력이 남아 있다
+    await expect(panel.locator('textarea[name="body"]')).toHaveValue("가".repeat(5001)); // 입력이 남아 있다
     await expect(heading(page)).toHaveText(/리뷰 0$/); // 저장되지 않았다
   });
 });
@@ -243,7 +243,7 @@ test("다른 사람의 리뷰: 좋아요 순·최신순으로 읽고, 좋아요�
   await test.step("내가 쓴 리뷰에는 좋아요 버튼이 없고(수만 보인다), 다른 사람의 리뷰 순서는 그대로다", async () => {
     const panel = reviewPanel(page);
     await panel.locator("summary").click();
-    await panel.locator("#review-body").fill("내가 쓴 글");
+    await panel.locator('textarea[name="body"]').fill("내가 쓴 글");
     await save(page).click();
     await expect(page.getByRole("status")).toContainText("저장했어요.");
     await expect(heading(page)).toHaveText(/리뷰 4$/);
@@ -313,7 +313,7 @@ test("리뷰 영역에 접근성 위반과 라운드·그림자가 없다(라이
   await page.goto(`/games/${game.slug}`);
   await waitForReact(page, `${RECORD} button`);
   await reviewPanel(page).locator("summary").click();
-  await reviewPanel(page).locator("#review-body").fill("접근성 검사용 글");
+  await reviewPanel(page).locator('textarea[name="body"]').fill("접근성 검사용 글");
   await save(page).click();
   await expect(page.getByRole("status")).toContainText("저장했어요.");
 
@@ -322,7 +322,7 @@ test("리뷰 영역에 접근성 위반과 라운드·그림자가 없다(라이
     await page.reload(); // 처음부터 그 색으로 다시 그려서 검사한다(전환 중간 값이 검사되지 않게)
     await expect(items(page)).toHaveCount(3);
     await reviewPanel(page).locator("summary").click(); // 폼이 펼쳐진 상태도 검사한다
-    await expect(reviewPanel(page).locator("#review-body")).toBeVisible();
+    await expect(reviewPanel(page).locator('textarea[name="body"]')).toBeVisible();
     const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(results.violations.map((v) => `${v.id}: ${v.nodes.length}곳 — ${v.nodes[0]?.target.join(" ")}`), scheme).toEqual([]);
     const offenders = await page.evaluate(() =>
@@ -359,7 +359,7 @@ test("미리보기 게임에 처음 리뷰를 쓰면 서비스에 등록되고 �
     await waitForReact(page, `${RECORD} button`);
     const panel = reviewPanel(page);
     await panel.locator("summary").click();
-    await panel.locator("#review-body").fill("처음 쓰는 리뷰");
+    await panel.locator('textarea[name="body"]').fill("처음 쓰는 리뷰");
     await save(page).click();
 
     await expect(page).toHaveURL(/\/games\/(?!igdb-)[a-z0-9-]+$/, { timeout: 60_000 });
@@ -367,5 +367,10 @@ test("미리보기 게임에 처음 리뷰를 쓰면 서비스에 등록되고 �
     await expect(reviewPanel(page).locator("summary")).toContainText("내 리뷰");
     await expect(heading(page)).toHaveText(/리뷰 1$/);
     await expect(items(page).first()).toContainText("처음 쓰는 리뷰");
+
+    // 이동한 뒤에도 숨겨진 이전 화면(미리보기)이 DOM에 남아 있다. 그쪽 입력칸과 id가 겹치면 라벨이 숨겨진 입력칸에 붙어,
+    // 보이는 입력칸이 이름("리뷰")을 잃는다.
+    await reviewPanel(page).locator("summary").click();
+    await expect(reviewPanel(page).getByRole("textbox", { name: "리뷰", exact: true })).toBeVisible();
   });
 });
