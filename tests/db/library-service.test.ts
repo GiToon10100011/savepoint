@@ -348,6 +348,22 @@ describe("목록", () => {
       expect((await ids(me, { filter: "rated" })).toSorted()).toEqual([rows.playing.id, rows.cleared.id, rows.unset.id].toSorted());
     });
 
+    it("리뷰 작성함은 내가 리뷰를 쓴 게임만 준다(공개·비공개 모두, 라이브러리 상태와 무관하고 남의 리뷰는 세지 않는다)", async () => {
+      const { me, rows } = await library();
+      const other = await makeUser();
+      // 내가 공개 리뷰(playing)와 비공개 리뷰(planned)를 쓰고, 다른 사용자가 내 라이브러리의 다른 게임(cleared)에 리뷰를 쓴다.
+      await runAsUser(pool, me, (_t, c) =>
+        c.query("insert into game_reviews (user_id, game_id, body, visibility) values ($1, $2, '공개 글', 'public'), ($1, $3, '비공개 글', 'private')", [me.profileId, rows.playing.game, rows.planned.game]),
+      );
+      await runAsUser(pool, other, (_t, c) => c.query("insert into game_reviews (user_id, game_id, body) values ($1, $2, '남의 글')", [other.profileId, rows.cleared.game]));
+      expect((await ids(me, { filter: "reviewed" })).toSorted()).toEqual([rows.playing.id, rows.planned.id].toSorted());
+      // 평가함과 섞이지 않는다.
+      expect((await ids(me, { filter: "rated" })).toSorted()).toEqual([rows.playing.id, rows.cleared.id, rows.unset.id].toSorted());
+      // 리뷰를 지우면 빠진다(비공개 리뷰도 마찬가지).
+      await runAsUser(pool, me, (_t, c) => c.query("delete from game_reviews where user_id = $1 and game_id = $2", [me.profileId, rows.planned.game]));
+      expect(await ids(me, { filter: "reviewed" })).toEqual([rows.playing.id]);
+    });
+
     it("장르·플랫폼 필터와 조합한다", async () => {
       const { me, pc, switchP, rows } = await library();
       expect((await ids(me, { genre: "rpg" })).toSorted()).toEqual([rows.playing.id, rows.cleared.id].toSorted());

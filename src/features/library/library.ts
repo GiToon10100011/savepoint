@@ -166,9 +166,13 @@ export function decodeLibraryCursor(value: string | null | undefined, sort: Libr
   }
 }
 
-/** 목록 필터. 한 번에 하나만 건다(탭·상태 선택이 같은 자리다). `unset`은 상태 미지정, `rated`는 내가 평가한 게임이다. */
-export type LibraryFilter = PlayStatus | "unset" | "rated" | "all";
-export const isLibraryFilter = (value: unknown): value is LibraryFilter => value === "all" || value === "unset" || value === "rated" || isPlayStatus(value);
+/**
+ * 목록 필터. 한 번에 하나만 건다(탭·상태 선택이 같은 자리다). `unset`은 상태 미지정, `rated`는 내가 평가한 게임, `reviewed`는 내가 리뷰를
+ * 쓴 게임이다(공개·비공개 모두). 평가·리뷰는 라이브러리 상태와 무관하다.
+ */
+export type LibraryFilter = PlayStatus | "unset" | "rated" | "reviewed" | "all";
+export const isLibraryFilter = (value: unknown): value is LibraryFilter =>
+  value === "all" || value === "unset" || value === "rated" || value === "reviewed" || isPlayStatus(value);
 
 export type LibraryQuery = {
   filter?: LibraryFilter;
@@ -226,6 +230,8 @@ export async function listLibrary(pool: Pool, user: LibraryUser, query: LibraryQ
   const filter: LibraryFilter = isLibraryFilter(query.filter) ? query.filter : "all";
   if (filter === "unset") where.push("ug.status is null");
   else if (filter === "rated") where.push("r.rating is not null");
+  // 내 비공개 리뷰도 세야 하므로 아래 쿼리는 세션 컨텍스트로 읽는다(RLS가 비공개 리뷰를 작성자에게만 보여 준다).
+  else if (filter === "reviewed") where.push("exists (select 1 from game_reviews rv where rv.user_id = ug.user_id and rv.game_id = ug.game_id)");
   else if (filter !== "all") where.push(`ug.status = ${bind(filter)}::play_status`);
   if (query.genre) where.push(`exists (select 1 from game_genres gg join genres x on x.id = gg.genre_id where gg.game_id = ug.game_id and x.slug = ${bind(query.genre)})`);
   if (query.platform) where.push(`ug.platform_id = (select id from platforms where slug = ${bind(query.platform)})`);
@@ -236,7 +242,7 @@ export async function listLibrary(pool: Pool, user: LibraryUser, query: LibraryQ
     where.push(`(${sort.expr}, ug.id) ${op} (${bind(cursor.key)}::${sort.cast}, ${bind(cursor.id)}::uuid)`);
   }
 
-  const { rows } = await pool.query<ListRow>(
+  const { rows } = await runAsUser(pool, user, (_tx, client) => client.query<ListRow>(
     `select ug.id, ug.game_id, g.slug, g.title, g.title_ko, g.cover_url, g.cover_width, g.cover_height,
             ug.status, ug.progress_percent, ug.progress_text, p.name as platform_name, r.rating as my_rating,
             to_char(ug.last_played_on, 'YYYY-MM-DD') as last_played_on, to_char(ug.cleared_on, 'YYYY-MM-DD') as cleared_on,
@@ -249,7 +255,7 @@ export async function listLibrary(pool: Pool, user: LibraryUser, query: LibraryQ
      order by ${sort.expr} ${sort.dir}, ug.id ${sort.dir}
      limit ${bind(limit + 1)}`,
     params,
-  );
+  ));
 
   const page = rows.slice(0, limit);
   const last = page[page.length - 1];

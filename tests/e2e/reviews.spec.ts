@@ -113,6 +113,23 @@ test("리뷰를 쓰고 고치고 지운다(평가·라이브러리와는 독립�
     await expect(panel.getByLabel("스포일러가 포함돼 있어요")).toBeChecked();
   });
 
+  await test.step("라이브러리의 `리뷰 작성함`에는 비공개로 쓴 리뷰의 게임도 나오고, 평가함과는 별개다", async () => {
+    // 리뷰·평가·라이브러리는 서로 독립이라 라이브러리에 추가해야 이 목록에 보인다.
+    await page.getByRole("button", { name: "라이브러리에 추가" }).click();
+    await expect(page.getByRole("button", { name: "라이브러리에 추가" })).toHaveCount(0);
+    await page.goto("/library");
+    await page.getByRole("navigation", { name: "라이브러리 보기" }).getByRole("link", { name: "리뷰 작성함", exact: true }).click();
+    await expect(page).toHaveURL(/filter=reviewed/);
+    await expect(page.getByLabel("상태", { exact: true })).toHaveValue("reviewed"); // 탭으로 이동해도 선택 상자가 따라간다
+    const rows = page.getByRole("list", { name: "라이브러리 목록" }).getByRole("listitem");
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText(game.title);
+    await page.goto("/library?filter=rated");
+    await expect(page.getByText("조건에 맞는 게임이 없어요.")).toBeVisible(); // 아직 평가하지 않았다
+    await page.goto(`/games/${game.slug}`);
+    await waitForReact(page, `${RECORD} button`);
+  });
+
   await test.step("별점을 남기고 다시 공개하면 목록에 별점과 `수정됨`이 보인다", async () => {
     await waitForReact(page, '[role="slider"]');
     await slider.focus();
