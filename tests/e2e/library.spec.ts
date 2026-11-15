@@ -37,6 +37,7 @@ test("라이브러리에 추가하고 상태·진행도·날짜·메모를 기�
   const game = await createGameFixture();
   const panel = page.locator(`${RECORD} details`);
   const slider = page.getByRole("slider", { name: "내 별점" });
+  let platform = "";
 
   await test.step("가입한 뒤 상세 화면에서 라이브러리에 추가한다(상태 미지정)", async () => {
     await signUp(page, user);
@@ -58,12 +59,15 @@ test("라이브러리에 추가하고 상태·진행도·날짜·메모를 기�
     await panel.getByRole("button", { name: "오늘 (플레이 시작일에 입력)" }).click();
     await expect(panel.getByLabel("플레이 시작일", { exact: true })).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
     await panel.locator("#platformId").selectOption({ index: 1 });
-    const platform = (await panel.locator("#platformId option:checked").textContent()) ?? "";
+    platform = (await panel.locator("#platformId option:checked").textContent()) ?? "";
     await panel.getByLabel("메모 (선택)").fill("E2E 메모\n두 번째 줄");
     await panel.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("저장했어요.");
     await expect(panel.locator("summary")).toContainText("플레이 중");
     await expect(panel.locator("summary")).toContainText(`40% · 챕터 3 · ${platform}`);
+    // 저장이 끝나 폼이 초기화돼도 선택한 플랫폼·상태가 그대로다(되돌아가면 다음 저장이 조용히 지운다).
+    await expect(panel.locator("#platformId option:checked")).toHaveText(platform);
+    await expect(panel.getByLabel("플레이 중", { exact: true })).toBeChecked();
 
     await page.reload();
     await expect(panel.locator("summary")).toContainText("플레이 중");
@@ -91,6 +95,7 @@ test("라이브러리에 추가하고 상태·진행도·날짜·메모를 기�
     await panel.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("저장했어요.");
     await expect(panel.locator("summary")).toContainText("엔딩 완료");
+    await expect(panel.locator("summary")).toContainText(`40% · 챕터 3 · ${platform}`); // 새로고침 없이 거듭 저장해도 플랫폼이 남는다
     await expect(slider).toHaveAttribute("aria-valuetext", "평가하지 않음");
     await expect(page.getByText("아직 평가가 없어요")).toBeVisible();
   });

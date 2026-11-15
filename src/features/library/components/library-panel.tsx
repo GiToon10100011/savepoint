@@ -168,11 +168,15 @@ function EntryEditor({ gameId, entry, platforms }: { gameId: string; entry: Libr
       <form action={formAction} noValidate onChange={() => setEditedAfter(state)} className="grid gap-5 border-t border-line p-3">
         <input type="hidden" name="gameId" value={gameId} />
 
-        <GameStatusPicker name="status" value={status} onChange={setStatus} />
+        {/* 플랫폼 select와 같은 이유로 key를 건다: 저장 뒤 폼 초기화는 라디오를 처음 그릴 때의 선택으로 되돌려, 손대지 않은 상태가 풀려 다음 저장에서 지워진다. */}
+        <GameStatusPicker key={values.status} name="status" value={status} onChange={setStatus} />
         {errors?.status ? <p className="text-xs text-error">{errors.status}</p> : null}
 
         <Field id="platformId" label="플랫폼 (선택)" error={errors?.platformId}>
+          {/* React는 저장이 끝나면 폼을 초기화하는데, 이미 그려진 select는 defaultValue가 바뀌어도 초기화 때 돌아갈 선택을 갱신하지 않는다.
+              그래서 값이 바뀔 때 다시 그려(key) 저장한 플랫폼이 `선택 안 함`으로 되돌아가 다음 저장에서 지워지는 일을 막는다. */}
           <select
+            key={values.platformId}
             id="platformId"
             name="platformId"
             defaultValue={values.platformId}
