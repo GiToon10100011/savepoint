@@ -111,7 +111,8 @@ async function LibraryContent({ searchParams }: Pick<PageProps<"/library">, "sea
       </nav>
 
       {/* 주소(GET)에 담는 폼이라 JS 없이도 동작하고 결과를 공유·새로고침할 수 있다. */}
-      <form action="/library" method="get" className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* 탭·`조건 지우기` 링크로 주소만 바뀌어도 선택 상자가 따라가도록 주소의 값으로 key를 건다(defaultValue는 처음 그릴 때만 반영된다). */}
+      <form key={[view.filter, view.genre ?? "", view.platform ?? "", view.sort].join("|")} action="/library" method="get" className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
           <label htmlFor="filter" className="mb-1 block text-xs text-muted">
             상태

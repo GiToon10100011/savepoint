@@ -166,6 +166,12 @@ test("라이브러리 목록: 한 페이지를 넘으면 더 보기로 이어 �
     await expect(rows(page).first()).toContainText(title(20));
     for (const row of await rows(page).all()) await expect(row).toContainText("플레이 중");
     await expect(page.getByRole("link", { name: "더 보기" })).toHaveCount(0);
+    // 탭으로 이동해도 아래 선택 상자가 주소의 값을 따라간다(그대로면 다음 `적용`이 다른 상태로 걸러 버린다).
+    await expect(page.getByLabel("상태", { exact: true })).toHaveValue("playing");
+    await tab(page, "엔딩 완료").click();
+    await expect(page.getByLabel("상태", { exact: true })).toHaveValue("cleared");
+    await tab(page, "전체").click();
+    await expect(page.getByLabel("상태", { exact: true })).toHaveValue("all");
   });
 
   await test.step("선택 상자로 `상태 미지정`만 걸러 본다(주소에 담긴다)", async () => {
